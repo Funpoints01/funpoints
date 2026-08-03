@@ -13,7 +13,7 @@ const ROLLEN = [
   { key: 'uitbater', href: '/uitbater', emoji: '📊', kleur: C.violet,
     titel: 'Uitbater', sub: 'Beheer je attracties en bekijk je cijfers.', klaar: false },
   { key: 'bezoeker', href: '/bezoeker', emoji: '🎟️', kleur: C.coral,
-    titel: 'Bezoeker', sub: 'Spaar punten en bekijk je saldo.', klaar: false },
+    titel: 'Bezoeker', sub: 'Spaar punten en bekijk je saldo.', klaar: true },
 ] as const
 
 export default function Landing() {
