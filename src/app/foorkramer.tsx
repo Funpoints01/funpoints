@@ -104,6 +104,7 @@ function Login() {
 function vertaalFout(m: string): string {
   if (m.includes('ONVOLDOENDE_SALDO')) return 'Onvoldoende saldo op dit kaartje.'
   if (m.includes('KAARTJE_ONBEKEND')) return 'Deze kaartje-code bestaat niet.'
+  if (m.includes('BEZOEKER_ONBEKEND')) return 'Deze klant-QR is niet gekend.'
   if (m.includes('NIET_GEMACHTIGD')) return 'Deze login is geen attractie — boeken mag niet.'
   if (m.includes('PUNTEN_MOET_POSITIEF')) return 'Geef een positief aantal punten.'
   if (m.includes('GEEF_BEZOEKER_OF_KAARTJE')) return 'Geen geldige drager (kaartje).'
@@ -158,6 +159,7 @@ function Boeken({ session }: { session: Session }) {
   const [naam, setNaam] = useState<string | null>(null)
   const [naamLaden, setNaamLaden] = useState(true)
   const [code, setCode] = useState('')
+  const [isBezoeker, setIsBezoeker] = useState(false)
   const [punten, setPunten] = useState('')
   const [bezig, setBezig] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(false)
@@ -175,9 +177,13 @@ function Boeken({ session }: { session: Session }) {
     if (!n || n <= 0) { setMelding({ ok: false, tekst: 'Geef een positief aantal punten.' }); return }
     setBezig(true)
     setMelding(null)
-    const { data, error } = await supabase.rpc('boek_punten', {
-      p_punten: n, p_soort: soort, p_kaartje_code: code.trim(),
-    })
+    const { data, error } = isBezoeker
+      ? await supabase.rpc('boek_bezoeker', {
+          p_bezoeker_code: code.trim(), p_punten: n, p_soort: soort,
+        })
+      : await supabase.rpc('boek_punten', {
+          p_punten: n, p_soort: soort, p_kaartje_code: code.trim(),
+        })
     setBezig(false)
     if (error) {
       setMelding({ ok: false, tekst: vertaalFout(error.message) })
@@ -191,7 +197,15 @@ function Boeken({ session }: { session: Session }) {
   if (scannerOpen) {
     return (
       <Scanner
-        onScan={(d) => { setCode(d.trim().toUpperCase()); setScannerOpen(false); setMelding(null) }}
+        onScan={(d) => {
+          const raw = d.trim()
+          if (raw.startsWith('FP-B:')) {
+            setCode((raw.split(':')[1] ?? '').trim()); setIsBezoeker(true)
+          } else {
+            setCode(raw.toUpperCase()); setIsBezoeker(false)
+          }
+          setScannerOpen(false); setMelding(null)
+        }}
         onSluit={() => setScannerOpen(false)}
       />
     )
@@ -221,10 +235,12 @@ function Boeken({ session }: { session: Session }) {
 
           <Text style={[s.label, { marginTop: 18 }]}>Kaartje-code</Text>
           <TextInput
-            style={s.input} value={code} onChangeText={setCode}
+            style={s.input} value={code}
+            onChangeText={(t) => { setCode(t); setIsBezoeker(false) }}
             autoCapitalize="characters" autoCorrect={false}
             placeholder="of typ bv. TEST123" placeholderTextColor={C.muted}
           />
+          {isBezoeker ? <Text style={s.klantNote}>👤 Klant-QR herkend</Text> : null}
 
           <Text style={[s.label, { marginTop: 14 }]}>Aantal punten</Text>
           <TextInput
@@ -296,6 +312,7 @@ const s = StyleSheet.create({
   okBox: { backgroundColor: C.okbg },
   okT: { color: C.greend },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 26, opacity: 0.7 },
+  klantNote: { color: C.green, fontSize: 13, fontWeight: '700', marginTop: 8 },
   scanOverlay: {
     position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
     justifyContent: 'center', alignItems: 'center', padding: 28, gap: 20,
