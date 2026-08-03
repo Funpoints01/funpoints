@@ -1,303 +1,101 @@
-import { useEffect, useState } from 'react'
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native'
-import { CameraView, useCameraPermissions } from 'expo-camera'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { useRouter } from 'expo-router'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 
 const C = {
-  bg: '#0B0A1F', card: '#17152E', card2: '#1E1B38', ink: '#F5F6FF',
-  muted: '#9A9AC2', green: '#10B981', greenl: '#34D399', red: '#F87171',
-  redbg: 'rgba(248,113,113,0.12)', okbg: 'rgba(16,185,129,0.12)',
-  line: 'rgba(255,255,255,0.10)',
+  bg: '#FFF8F0', ink: '#241B3A', muted: '#7A7290',
+  green: '#10B981', violet: '#8B5CF6', coral: '#FB7185', amber: '#F59E0B', sky: '#38BDF8',
+  card: '#FFFFFF', line: 'rgba(36,27,58,0.08)',
 }
 
-export default function Index() {
-  const [session, setSession] = useState<Session | null>(null)
-  const [laden, setLaden] = useState(true)
+const ROLLEN = [
+  { key: 'foorkramer', href: '/foorkramer', emoji: '🎯', kleur: C.green,
+    titel: 'Foorkramer', sub: 'Scan kaartjes en boek punten aan de kraam.', klaar: true },
+  { key: 'uitbater', href: '/uitbater', emoji: '📊', kleur: C.violet,
+    titel: 'Uitbater', sub: 'Beheer je attracties en bekijk je cijfers.', klaar: false },
+  { key: 'bezoeker', href: '/bezoeker', emoji: '🎟️', kleur: C.coral,
+    titel: 'Bezoeker', sub: 'Spaar punten en bekijk je saldo.', klaar: false },
+] as const
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLaden(false)
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
-
-  if (laden) {
-    return (
-      <View style={[s.scherm, s.center]}>
-        <ActivityIndicator color={C.green} size="large" />
-      </View>
-    )
-  }
-  return session ? <Boeken session={session} /> : <Login />
-}
-
-function Logo() {
-  return (
-    <View style={s.logo}>
-      <View style={s.mark}><Text style={s.markT}>F</Text></View>
-      <Text style={s.logoT}>Funpoints</Text>
-    </View>
-  )
-}
-
-function Login() {
-  const [email, setEmail] = useState('')
-  const [ww, setWw] = useState('')
-  const [bezig, setBezig] = useState(false)
-  const [fout, setFout] = useState('')
-
-  async function login() {
-    setFout('')
-    setBezig(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(), password: ww,
-    })
-    setBezig(false)
-    if (error) setFout('Inloggen mislukt — controleer je e-mail en wachtwoord.')
-  }
-
-  return (
-    <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={[s.wrap, s.center]} keyboardShouldPersistTaps="handled">
-        <Logo />
-        <Text style={s.titel}>Attractie-login</Text>
-        <Text style={s.sub}>Log in met de account van deze attractie.</Text>
-
-        <View style={s.kaart}>
-          <Text style={s.label}>E-mail</Text>
-          <TextInput
-            style={s.input} value={email} onChangeText={setEmail}
-            autoCapitalize="none" keyboardType="email-address"
-            placeholder="attractie@funpoints.be" placeholderTextColor={C.muted}
-          />
-          <Text style={[s.label, { marginTop: 14 }]}>Wachtwoord</Text>
-          <TextInput
-            style={s.input} value={ww} onChangeText={setWw}
-            secureTextEntry placeholder="••••••••" placeholderTextColor={C.muted}
-          />
-
-          {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
-
-          <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopGroen, bezig && s.knopUit]}>
-            {bezig
-              ? <ActivityIndicator color="#04121a" />
-              : <Text style={s.knopGroenT}>Inloggen</Text>}
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  )
-}
-
-function vertaalFout(m: string): string {
-  if (m.includes('ONVOLDOENDE_SALDO')) return 'Onvoldoende saldo op dit kaartje.'
-  if (m.includes('KAARTJE_ONBEKEND')) return 'Deze kaartje-code bestaat niet.'
-  if (m.includes('NIET_GEMACHTIGD')) return 'Deze login is geen attractie — boeken mag niet.'
-  if (m.includes('PUNTEN_MOET_POSITIEF')) return 'Geef een positief aantal punten.'
-  if (m.includes('GEEF_BEZOEKER_OF_KAARTJE')) return 'Geen geldige drager (kaartje).'
-  return 'Er ging iets mis. Probeer opnieuw.'
-}
-
-function Scanner({ onScan, onSluit }: { onScan: (code: string) => void; onSluit: () => void }) {
-  const [perm, requestPerm] = useCameraPermissions()
-  const [klaar, setKlaar] = useState(false)
-
-  useEffect(() => {
-    if (perm && !perm.granted && perm.canAskAgain) requestPerm()
-  }, [perm])
-
-  if (!perm) {
-    return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.green} /></View>
-  }
-  if (!perm.granted) {
-    return (
-      <View style={[s.scherm, s.center, { padding: 28 }]}>
-        <Text style={s.scanUitleg}>Funpoints heeft toegang tot je camera nodig om kaartjes te scannen.</Text>
-        <Pressable style={[s.knop, s.knopGroen, { alignSelf: 'stretch' }]} onPress={requestPerm}>
-          <Text style={s.knopGroenT}>Camera toestaan</Text>
-        </Pressable>
-        <Pressable style={{ marginTop: 16 }} onPress={onSluit}>
-          <Text style={s.uitlog}>Annuleren</Text>
-        </Pressable>
-      </View>
-    )
-  }
+export default function Landing() {
+  const router = useRouter()
   return (
     <View style={s.scherm}>
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={klaar ? undefined : ({ data }) => { setKlaar(true); onScan(data) }}
-      />
-      <View style={s.scanOverlay}>
-        <View style={s.scanKader} />
-        <Text style={s.scanHint}>Richt op de QR-code van het kaartje</Text>
-        <Pressable style={[s.knop, s.knopDonker, { alignSelf: 'stretch' }]} onPress={onSluit}>
-          <Text style={s.knopDonkerT}>Sluiten</Text>
-        </Pressable>
-      </View>
-    </View>
-  )
-}
+      <View style={[s.blob, { backgroundColor: C.amber, top: -70, right: -50 }]} />
+      <View style={[s.blob, { backgroundColor: C.sky, top: 140, left: -80 }]} />
+      <View style={[s.blob, { backgroundColor: C.coral, bottom: -60, right: -40 }]} />
+      <Text style={[s.deco, { top: 44, left: 22, fontSize: 58 }]}>🎡</Text>
+      <Text style={[s.deco, { top: 150, right: 16, fontSize: 46 }]}>🎠</Text>
+      <Text style={[s.deco, { bottom: 120, left: 8, fontSize: 54 }]}>🎪</Text>
+      <Text style={[s.deco, { bottom: 36, right: 30, fontSize: 44 }]}>🎢</Text>
 
-function Boeken({ session }: { session: Session }) {
-  const [naam, setNaam] = useState<string | null>(null)
-  const [naamLaden, setNaamLaden] = useState(true)
-  const [code, setCode] = useState('')
-  const [punten, setPunten] = useState('')
-  const [bezig, setBezig] = useState(false)
-  const [scannerOpen, setScannerOpen] = useState(false)
-  const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
-
-  useEffect(() => {
-    supabase.from('attractie').select('naam')
-      .eq('auth_user_id', session.user.id).maybeSingle()
-      .then(({ data }) => { setNaam(data?.naam ?? null); setNaamLaden(false) })
-  }, [])
-
-  async function boek(soort: 'toevoegen' | 'aftrekken') {
-    const n = parseInt(punten, 10)
-    if (!code.trim()) { setMelding({ ok: false, tekst: 'Scan of typ eerst een kaartje-code.' }); return }
-    if (!n || n <= 0) { setMelding({ ok: false, tekst: 'Geef een positief aantal punten.' }); return }
-    setBezig(true)
-    setMelding(null)
-    const { data, error } = await supabase.rpc('boek_punten', {
-      p_punten: n, p_soort: soort, p_kaartje_code: code.trim(),
-    })
-    setBezig(false)
-    if (error) {
-      setMelding({ ok: false, tekst: vertaalFout(error.message) })
-    } else {
-      const teken = soort === 'toevoegen' ? '+' : '−'
-      setMelding({ ok: true, tekst: `${teken}${n} geboekt. Nieuw saldo: ${data} punten.` })
-      setPunten('')
-    }
-  }
-
-  if (scannerOpen) {
-    return (
-      <Scanner
-        onScan={(d) => { setCode(d.trim().toUpperCase()); setScannerOpen(false); setMelding(null) }}
-        onSluit={() => setScannerOpen(false)}
-      />
-    )
-  }
-
-  return (
-    <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
-        <View style={s.topbar}>
-          <Logo />
-          <Pressable onPress={() => supabase.auth.signOut()}>
-            <Text style={s.uitlog}>Uitloggen</Text>
-          </Pressable>
+      <ScrollView contentContainerStyle={s.wrap}>
+        <View style={s.logo}>
+          <View style={s.mark}><Text style={s.markT}>F</Text></View>
+          <Text style={s.logoT}>Funpoints</Text>
         </View>
 
-        <Text style={s.titel}>Punten boeken</Text>
-        <Text style={s.sub}>
-          {naamLaden ? 'Ingelogd…'
-            : naam ? `Attractie: ${naam}`
-            : 'Let op: deze login is aan geen attractie gekoppeld.'}
-        </Text>
+        <Text style={s.titel}>Welkom op de kermis! 🎉</Text>
+        <Text style={s.sub}>Digitale spaarpunten voor foor en attractie. Kies hieronder wie je bent.</Text>
 
-        <View style={s.kaart}>
-          <Pressable style={[s.knop, s.knopGroen, { marginTop: 0 }]} onPress={() => setScannerOpen(true)}>
-            <Text style={s.knopGroenT}>📷 Scan kaartje</Text>
-          </Pressable>
-
-          <Text style={[s.label, { marginTop: 18 }]}>Kaartje-code</Text>
-          <TextInput
-            style={s.input} value={code} onChangeText={setCode}
-            autoCapitalize="characters" autoCorrect={false}
-            placeholder="of typ bv. TEST123" placeholderTextColor={C.muted}
-          />
-
-          <Text style={[s.label, { marginTop: 14 }]}>Aantal punten</Text>
-          <TextInput
-            style={s.input} value={punten} onChangeText={setPunten}
-            keyboardType="number-pad" placeholder="bv. 50" placeholderTextColor={C.muted}
-          />
-
-          {melding
-            ? <View style={[s.foutBox, melding.ok && s.okBox]}>
-                <Text style={[s.foutT, melding.ok && s.okT]}>{melding.tekst}</Text>
+        <View style={s.kaarten}>
+          {ROLLEN.map((r) => (
+            <Pressable
+              key={r.key}
+              onPress={() => router.push(r.href)}
+              style={({ pressed }) => [s.kaart, pressed && s.kaartActief]}
+            >
+              <View style={[s.badge, { backgroundColor: r.kleur }]}>
+                <Text style={s.badgeE}>{r.emoji}</Text>
               </View>
-            : null}
-
-          <View style={s.knoppenRij}>
-            <Pressable onPress={() => boek('toevoegen')} disabled={bezig}
-              style={[s.knop, s.knopGroen, s.knopHalf, bezig && s.knopUit]}>
-              <Text style={s.knopGroenT}>+ Toevoegen</Text>
+              <View style={{ flex: 1 }}>
+                <View style={s.kaartTop}>
+                  <Text style={s.kaartTitel}>{r.titel}</Text>
+                  {!r.klaar ? <Text style={s.binnenkort}>binnenkort</Text> : null}
+                </View>
+                <Text style={s.kaartSub}>{r.sub}</Text>
+              </View>
+              <Text style={[s.chevron, { color: r.kleur }]}>›</Text>
             </Pressable>
-            <Pressable onPress={() => boek('aftrekken')} disabled={bezig}
-              style={[s.knop, s.knopDonker, s.knopHalf, bezig && s.knopUit]}>
-              <Text style={s.knopDonkerT}>− Aftrekken</Text>
-            </Pressable>
-          </View>
-          {bezig ? <ActivityIndicator color={C.green} style={{ marginTop: 14 }} /> : null}
+          ))}
         </View>
 
-        <Text style={s.voet}>Fase 1 · scan of typ de kaartje-code</Text>
+        <Text style={s.voet}>Funpoints · fase 1 · concept</Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   )
 }
 
 const s = StyleSheet.create({
-  scherm: { flex: 1, backgroundColor: C.bg },
-  wrap: { padding: 22, paddingTop: 60, maxWidth: 460, width: '100%', alignSelf: 'center', flexGrow: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scherm: { flex: 1, backgroundColor: C.bg, overflow: 'hidden' },
+  wrap: { padding: 24, paddingTop: 70, paddingBottom: 40, maxWidth: 480, width: '100%', alignSelf: 'center', flexGrow: 1 },
+  logo: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 30 },
   mark: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: C.green,
+    width: 40, height: 40, borderRadius: 12, backgroundColor: C.green,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: C.green, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 5 },
   },
-  markT: { color: '#04121a', fontWeight: '800', fontSize: 18 },
-  logoT: { color: C.ink, fontWeight: '700', fontSize: 18 },
-  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  uitlog: { color: C.muted, fontSize: 14, fontWeight: '600' },
-  titel: { color: C.ink, fontSize: 26, fontWeight: '800', marginTop: 24 },
-  sub: { color: C.muted, fontSize: 14.5, marginTop: 6, marginBottom: 4 },
+  markT: { color: '#fff', fontWeight: '900', fontSize: 22 },
+  logoT: { color: C.ink, fontWeight: '800', fontSize: 21 },
+  titel: { color: C.ink, fontSize: 30, fontWeight: '900', letterSpacing: -0.5 },
+  sub: { color: C.muted, fontSize: 15.5, lineHeight: 23, marginTop: 10, maxWidth: 380 },
+  kaarten: { marginTop: 30, gap: 14 },
   kaart: {
-    backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line,
-    padding: 20, marginTop: 18,
+    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line,
+    padding: 16, flexDirection: 'row', alignItems: 'center', gap: 15,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
-  label: { color: C.muted, fontSize: 13, fontWeight: '600', marginBottom: 7 },
-  input: {
-    backgroundColor: C.card2, borderRadius: 12, borderWidth: 1, borderColor: C.line,
-    color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13,
+  kaartActief: { transform: [{ scale: 0.98 }], borderColor: 'rgba(36,27,58,0.16)' },
+  badge: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  badgeE: { fontSize: 28 },
+  kaartTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  kaartTitel: { color: C.ink, fontSize: 18.5, fontWeight: '800' },
+  binnenkort: {
+    color: C.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5,
+    backgroundColor: 'rgba(36,27,58,0.06)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden',
   },
-  knop: { borderRadius: 13, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
-  knopHalf: { flex: 1, marginTop: 0 },
-  knoppenRij: { flexDirection: 'row', gap: 12, marginTop: 18 },
-  knopGroen: { backgroundColor: C.green },
-  knopGroenT: { color: '#04121a', fontWeight: '800', fontSize: 16 },
-  knopDonker: { backgroundColor: C.card2, borderWidth: 1, borderColor: C.line },
-  knopDonkerT: { color: C.ink, fontWeight: '800', fontSize: 16 },
-  knopUit: { opacity: 0.5 },
-  foutBox: { backgroundColor: C.redbg, borderRadius: 11, padding: 12, marginTop: 16 },
-  foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  okBox: { backgroundColor: C.okbg },
-  okT: { color: C.greenl },
-  voet: { color: '#6E6E93', fontSize: 12, textAlign: 'center', marginTop: 26 },
-  scanOverlay: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
-    justifyContent: 'center', alignItems: 'center', padding: 28, gap: 20,
-  },
-  scanKader: {
-    width: 240, height: 240, borderRadius: 24,
-    borderWidth: 3, borderColor: C.greenl, backgroundColor: 'transparent',
-  },
-  scanHint: {
-    color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-  },
-  scanUitleg: { color: C.ink, fontSize: 15.5, textAlign: 'center', lineHeight: 22, marginBottom: 22 },
+  kaartSub: { color: C.muted, fontSize: 13.5, marginTop: 4, lineHeight: 19 },
+  chevron: { fontSize: 30, fontWeight: '700', marginRight: 4 },
+  voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 34, opacity: 0.7 },
+  blob: { position: 'absolute', width: 260, height: 260, borderRadius: 130, opacity: 0.15 },
+  deco: { position: 'absolute', opacity: 0.10 },
 })
