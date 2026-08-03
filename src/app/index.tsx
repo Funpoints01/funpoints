@@ -1,9 +1,10 @@
-import type { Session } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
+import { CameraView, useCameraPermissions } from 'expo-camera'
+import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 const C = {
@@ -103,12 +104,56 @@ function vertaalFout(m: string): string {
   return 'Er ging iets mis. Probeer opnieuw.'
 }
 
+function Scanner({ onScan, onSluit }: { onScan: (code: string) => void; onSluit: () => void }) {
+  const [perm, requestPerm] = useCameraPermissions()
+  const [klaar, setKlaar] = useState(false)
+
+  useEffect(() => {
+    if (perm && !perm.granted && perm.canAskAgain) requestPerm()
+  }, [perm])
+
+  if (!perm) {
+    return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.green} /></View>
+  }
+  if (!perm.granted) {
+    return (
+      <View style={[s.scherm, s.center, { padding: 28 }]}>
+        <Text style={s.scanUitleg}>Funpoints heeft toegang tot je camera nodig om kaartjes te scannen.</Text>
+        <Pressable style={[s.knop, s.knopGroen, { alignSelf: 'stretch' }]} onPress={requestPerm}>
+          <Text style={s.knopGroenT}>Camera toestaan</Text>
+        </Pressable>
+        <Pressable style={{ marginTop: 16 }} onPress={onSluit}>
+          <Text style={s.uitlog}>Annuleren</Text>
+        </Pressable>
+      </View>
+    )
+  }
+  return (
+    <View style={s.scherm}>
+      <CameraView
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        onBarcodeScanned={klaar ? undefined : ({ data }) => { setKlaar(true); onScan(data) }}
+      />
+      <View style={s.scanOverlay}>
+        <View style={s.scanKader} />
+        <Text style={s.scanHint}>Richt op de QR-code van het kaartje</Text>
+        <Pressable style={[s.knop, s.knopDonker, { alignSelf: 'stretch' }]} onPress={onSluit}>
+          <Text style={s.knopDonkerT}>Sluiten</Text>
+        </Pressable>
+      </View>
+    </View>
+  )
+}
+
 function Boeken({ session }: { session: Session }) {
   const [naam, setNaam] = useState<string | null>(null)
   const [naamLaden, setNaamLaden] = useState(true)
   const [code, setCode] = useState('')
   const [punten, setPunten] = useState('')
   const [bezig, setBezig] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
 
   useEffect(() => {
@@ -119,7 +164,7 @@ function Boeken({ session }: { session: Session }) {
 
   async function boek(soort: 'toevoegen' | 'aftrekken') {
     const n = parseInt(punten, 10)
-    if (!code.trim()) { setMelding({ ok: false, tekst: 'Typ eerst een kaartje-code.' }); return }
+    if (!code.trim()) { setMelding({ ok: false, tekst: 'Scan of typ eerst een kaartje-code.' }); return }
     if (!n || n <= 0) { setMelding({ ok: false, tekst: 'Geef een positief aantal punten.' }); return }
     setBezig(true)
     setMelding(null)
@@ -134,6 +179,15 @@ function Boeken({ session }: { session: Session }) {
       setMelding({ ok: true, tekst: `${teken}${n} geboekt. Nieuw saldo: ${data} punten.` })
       setPunten('')
     }
+  }
+
+  if (scannerOpen) {
+    return (
+      <Scanner
+        onScan={(d) => { setCode(d.trim().toUpperCase()); setScannerOpen(false); setMelding(null) }}
+        onSluit={() => setScannerOpen(false)}
+      />
+    )
   }
 
   return (
@@ -154,11 +208,15 @@ function Boeken({ session }: { session: Session }) {
         </Text>
 
         <View style={s.kaart}>
-          <Text style={s.label}>Kaartje-code</Text>
+          <Pressable style={[s.knop, s.knopGroen, { marginTop: 0 }]} onPress={() => setScannerOpen(true)}>
+            <Text style={s.knopGroenT}>📷 Scan kaartje</Text>
+          </Pressable>
+
+          <Text style={[s.label, { marginTop: 18 }]}>Kaartje-code</Text>
           <TextInput
             style={s.input} value={code} onChangeText={setCode}
             autoCapitalize="characters" autoCorrect={false}
-            placeholder="bv. TEST123" placeholderTextColor={C.muted}
+            placeholder="of typ bv. TEST123" placeholderTextColor={C.muted}
           />
 
           <Text style={[s.label, { marginTop: 14 }]}>Aantal punten</Text>
@@ -186,7 +244,7 @@ function Boeken({ session }: { session: Session }) {
           {bezig ? <ActivityIndicator color={C.green} style={{ marginTop: 14 }} /> : null}
         </View>
 
-        <Text style={s.voet}>Fase 1 · kaartje-code met de hand · QR-scan komt hierna</Text>
+        <Text style={s.voet}>Fase 1 · scan of typ de kaartje-code</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -195,7 +253,7 @@ function Boeken({ session }: { session: Session }) {
 const s = StyleSheet.create({
   scherm: { flex: 1, backgroundColor: C.bg },
   wrap: { padding: 22, paddingTop: 60, maxWidth: 460, width: '100%', alignSelf: 'center', flexGrow: 1 },
-  center: { justifyContent: 'center' },
+  center: { justifyContent: 'center', alignItems: 'center' },
   logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: {
     width: 34, height: 34, borderRadius: 10, backgroundColor: C.green,
@@ -229,4 +287,17 @@ const s = StyleSheet.create({
   okBox: { backgroundColor: C.okbg },
   okT: { color: C.greenl },
   voet: { color: '#6E6E93', fontSize: 12, textAlign: 'center', marginTop: 26 },
+  scanOverlay: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
+    justifyContent: 'center', alignItems: 'center', padding: 28, gap: 20,
+  },
+  scanKader: {
+    width: 240, height: 240, borderRadius: 24,
+    borderWidth: 3, borderColor: C.greenl, backgroundColor: 'transparent',
+  },
+  scanHint: {
+    color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+  },
+  scanUitleg: { color: C.ink, fontSize: 15.5, textAlign: 'center', lineHeight: 22, marginBottom: 22 },
 })
