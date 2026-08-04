@@ -263,36 +263,43 @@ function Home({ session }: { session: Session }) {
             </View>}
 
         <Text style={s.sectie}>🎟️ Mijn punten</Text>
-        <Text style={s.sub}>Tik op een kraam om je QR te tonen aan de foorkramer.</Text>
-        <View style={{ gap: 10, marginTop: 10 }}>
-          {kramen.map((k) => (
-            <View key={k.id} style={s.kraart}>
-              <Pressable onPress={() => setOpenId(openId === k.id ? null : k.id)}>
-                <View style={s.kraartRij}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.kraartNaam}>{k.naam}</Text>
-                    <Text style={s.kraartSoort}>{k.soort}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={s.saldoNum}>{k.saldo}</Text>
-                    <Text style={s.saldoLbl}>punten</Text>
-                  </View>
-                </View>
-                {openId === k.id ? (
-                  <View style={s.qrBox}>
-                    {code
-                      ? <View style={s.qrWit}><QRCode value={`FP-B:${code}:${k.id}`} size={168} backgroundColor="#FFFFFF" color="#241B3A" /></View>
-                      : <Text style={s.kraartSoort}>QR wordt geladen…</Text>}
-                    <Text style={s.qrHint}>Toon deze QR aan de foorkramer van {k.naam}</Text>
-                  </View>
-                ) : <Text style={s.toon}>Tik om je QR te tonen ›</Text>}
-              </Pressable>
-              <Pressable onPress={() => router.push(`/kraam/${k.id}`)} style={s.detailLink}>
-                <Text style={s.detailLinkT}>📍 Waar staat dit kraam? ›</Text>
-              </Pressable>
-            </View>
-          ))}
+        <View style={s.qrKaart}>
+          {code
+            ? <View style={s.qrWit}><QRCode value={`FP-B:${code}`} size={196} backgroundColor="#FFFFFF" color="#241B3A" /></View>
+            : <Text style={s.kraartSoort}>QR wordt geladen…</Text>}
+          <Text style={s.qrTitel}>Jouw punten-QR</Text>
+          <Text style={s.qrHint}>
+            Toon deze ene QR aan elk kraam. De foorkramer scant hem en je punten worden
+            automatisch bij dàt kraam bijgeschreven of ingeruild — nooit door elkaar.
+          </Text>
         </View>
+
+        {kramen.some((k) => k.saldo !== 0) ? (
+          <>
+            <Text style={s.subKop}>Je saldo per kraam</Text>
+            <View style={{ gap: 10 }}>
+              {kramen.filter((k) => k.saldo !== 0).map((k) => (
+                <View key={k.id} style={s.kraart}>
+                  <View style={s.kraartRij}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.kraartNaam}>{k.naam}</Text>
+                      <Text style={s.kraartSoort}>{k.soort}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={s.saldoNum}>{k.saldo}</Text>
+                      <Text style={s.saldoLbl}>punten</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => router.push(`/kraam/${k.id}`)} style={s.detailLink}>
+                    <Text style={s.detailLinkT}>📍 Waar staat dit kraam? ›</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : (
+          <Text style={s.sub}>Je hebt nog geen punten gespaard. Laat je QR scannen bij een kraam om te beginnen.</Text>
+        )}
 
         <Text style={s.voet}>Funpoints · meer belevenis komt eraan 🎠</Text>
       </ScrollView>
@@ -373,7 +380,14 @@ const s = StyleSheet.create({
   toon: { color: C.coral, fontSize: 13, fontWeight: '700', marginTop: 12 },
   qrBox: { alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line },
   qrWit: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line },
-  qrHint: { color: C.muted, fontSize: 12.5, marginTop: 12, textAlign: 'center' },
+  qrHint: { color: C.muted, fontSize: 12.5, marginTop: 10, textAlign: 'center', lineHeight: 18 },
+  qrKaart: {
+    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line,
+    padding: 22, alignItems: 'center', marginBottom: 18,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
+  },
+  qrTitel: { color: C.ink, fontSize: 16, fontWeight: '900', marginTop: 14 },
+  subKop: { color: C.ink, fontSize: 15, fontWeight: '800', marginTop: 4, marginBottom: 10 },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 30, opacity: 0.8 },
   actieKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16 },
   actieBoost: { borderColor: C.amber, borderWidth: 1.5, backgroundColor: 'rgba(245,158,11,0.05)' },

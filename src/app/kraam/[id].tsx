@@ -84,8 +84,8 @@ export default function KraamDetail() {
 
         {toonQr && code ? (
           <View style={s.qrVak}>
-            <View style={s.qrWit}><QRCode value={`FP-B:${code}:${id}`} size={180} backgroundColor="#FFFFFF" color="#241B3A" /></View>
-            <Text style={s.qrHint}>Toon deze QR aan de foorkramer van {attr.naam}</Text>
+            <View style={s.qrWit}><QRCode value={`FP-B:${code}`} size={180} backgroundColor="#FFFFFF" color="#241B3A" /></View>
+            <Text style={s.qrHint}>Dit is je persoonlijke punten-QR. Toon hem aan elk kraam — je punten gaan altijd naar het juiste kraam.</Text>
           </View>
         ) : null}
 
