@@ -28,6 +28,7 @@ export default function Registreer() {
   const [naam, setNaam] = useState('')
   const [email, setEmail] = useState('')
   const [gb, setGb] = useState('')
+  const [postcode, setPostcode] = useState('')
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
@@ -37,6 +38,7 @@ export default function Registreer() {
     if (!naam.trim()) return setFout('Vul je naam in.')
     const iso = naarISO(gb)
     if (!iso) return setFout('Geef je geboortedatum als DD-MM-JJJJ.')
+    if (!/^\d{4}$/.test(postcode.trim())) return setFout('Geef een geldige postcode (4 cijfers).')
     if (!email.trim()) return setFout('Vul je e-mailadres in.')
     if (ww.length < 6) return setFout('Kies een wachtwoord van minstens 6 tekens.')
 
@@ -56,7 +58,8 @@ export default function Registreer() {
     }
     // Profiel opslaan
     const { error: e2 } = await supabase.from('bezoeker').insert({
-      auth_user_id: data.user.id, naam: naam.trim(), email: email.trim(), geboortedatum: iso,
+      auth_user_id: data.user.id, naam: naam.trim(), email: email.trim(),
+      geboortedatum: iso, postcode: postcode.trim(),
     })
     if (e2) {
       setBezig(false)
@@ -103,6 +106,11 @@ export default function Registreer() {
           <TextInput style={s.input} value={gb} onChangeText={setGb}
             keyboardType="numbers-and-punctuation"
             placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
+          <TextInput style={s.input} value={postcode} onChangeText={setPostcode}
+            keyboardType="number-pad" maxLength={4}
+            placeholder="bv. 9300" placeholderTextColor={C.muted} />
 
           <Text style={[s.label, { marginTop: 14 }]}>Wachtwoord</Text>
           <TextInput style={s.input} value={ww} onChangeText={setWw}
