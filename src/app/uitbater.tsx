@@ -216,6 +216,9 @@ function Dashboard({ session }: { session: Session }) {
           <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/agenda')}>
             <Text style={s.knopVioletT}>📅 Agenda beheren</Text>
           </Pressable>
+          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/acties')}>
+            <Text style={s.knopVioletT}>📣 Acties</Text>
+          </Pressable>
         </View>
 
         <View style={[s.blok, s.credits]}>

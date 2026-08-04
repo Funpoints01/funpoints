@@ -1,0 +1,224 @@
+import { useEffect, useState } from 'react'
+import {
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View,
+} from 'react-native'
+import { useRouter } from 'expo-router'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase'
+
+const C = {
+  bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
+  muted: '#7A7290', violet: '#8B5CF6', amber: '#F59E0B', red: '#E11D48',
+  redbg: 'rgba(225,29,72,0.10)', line: 'rgba(36,27,58,0.10)',
+}
+const SOORTEN = [
+  { key: 'promo', label: 'Korting / promo' },
+  { key: 'bonus_punten', label: 'Extra punten' },
+]
+function naarISO(sv: string): string | null {
+  const d = sv.match(/\d+/g)
+  if (!d || d.length < 3) return null
+  const [dag, maand, jaar] = d
+  if (jaar.length !== 4) return null
+  const di = parseInt(dag, 10), mi = parseInt(maand, 10)
+  if (di < 1 || di > 31 || mi < 1 || mi > 12) return null
+  return `${jaar}-${maand.padStart(2, '0')}-${dag.padStart(2, '0')}`
+}
+function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); return `${d}-${m}-${j}` }
+function isGeboost(boostTot: string | null): boolean {
+  return !!boostTot && new Date(boostTot).getTime() > Date.now()
+}
+
+type Attr = { id: string; naam: string }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null }
+
+export default function Acties() {
+  const router = useRouter()
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [attracties, setAttracties] = useState<Attr[]>([])
+  const [acties, setActies] = useState<Actie[]>([])
+  const [laden, setLaden] = useState(true)
+
+  const [attrId, setAttrId] = useState('')
+  const [titel, setTitel] = useState('')
+  const [beschrijving, setBeschrijving] = useState('')
+  const [soort, setSoort] = useState('promo')
+  const [pct, setPct] = useState('')
+  const [van, setVan] = useState('')
+  const [tot, setTot] = useState('')
+  const [bezig, setBezig] = useState(false)
+  const [fout, setFout] = useState('')
+
+  useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
+
+  async function herlaad() {
+    const [{ data: att }, { data: act }] = await Promise.all([
+      supabase.from('attractie').select('id, naam'),
+      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot').order('van'),
+    ])
+    const lijst = (att ?? []) as Attr[]
+    setAttracties(lijst)
+    if (lijst.length && !attrId) setAttrId(lijst[0].id)
+    setActies((act ?? []) as Actie[])
+    setLaden(false)
+  }
+  useEffect(() => { if (session) herlaad() }, [session])
+
+  async function toevoegen() {
+    setFout('')
+    if (!attrId) return setFout('Kies een attractie.')
+    if (!titel.trim()) return setFout('Geef een titel.')
+    const vi = naarISO(van), ti = naarISO(tot)
+    if (!vi || !ti) return setFout('Geef de datums als DD-MM-JJJJ.')
+    if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
+    const pctNum = soort === 'bonus_punten' ? parseInt(pct, 10) : null
+    if (soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
+    setBezig(true)
+    const { error } = await supabase.from('actie').insert({
+      attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
+      soort, bonus_pct: pctNum, van: vi, tot: ti,
+    })
+    setBezig(false)
+    if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
+    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo')
+    herlaad()
+  }
+
+  async function verwijder(id: string) {
+    await supabase.from('actie').delete().eq('id', id)
+    setActies((a) => a.filter((x) => x.id !== id))
+  }
+
+  if (session === undefined || laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.violet} size="large" /></View>
+  if (session === null) return (
+    <View style={[s.scherm, s.center, { padding: 28 }]}>
+      <Text style={s.sub}>Log eerst in als uitbater.</Text>
+      <Pressable onPress={() => router.push('/uitbater')} style={{ marginTop: 16 }}><Text style={s.terug}>Naar inloggen</Text></Pressable>
+    </View>
+  )
+
+  const naamVan = (id: string) => attracties.find((a) => a.id === id)?.naam ?? '—'
+
+  return (
+    <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.push('/uitbater')} hitSlop={12}><Text style={s.terug}>‹ Dashboard</Text></Pressable>
+        <Text style={s.titel}>Acties</Text>
+        <Text style={s.sub}>Zet acties op voor je kramen — ze verschijnen bij de bezoekers.</Text>
+
+        <View style={s.kaart}>
+          <Text style={s.blokTitel}>Nieuwe actie</Text>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Attractie</Text>
+          <View style={s.chips}>
+            {attracties.map((a) => (
+              <Pressable key={a.id} onPress={() => setAttrId(a.id)} style={[s.chip, attrId === a.id && s.chipActief]}>
+                <Text style={[s.chipT, attrId === a.id && s.chipTActief]}>{a.naam}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Titel</Text>
+          <TextInput style={s.input} value={titel} onChangeText={setTitel}
+            placeholder="bv. 10% extra punten dit weekend" placeholderTextColor={C.muted} />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Beschrijving (optioneel)</Text>
+          <TextInput style={s.input} value={beschrijving} onChangeText={setBeschrijving}
+            placeholder="korte uitleg" placeholderTextColor={C.muted} />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Soort</Text>
+          <View style={s.chips}>
+            {SOORTEN.map((so) => (
+              <Pressable key={so.key} onPress={() => setSoort(so.key)} style={[s.chip, soort === so.key && s.chipActief]}>
+                <Text style={[s.chipT, soort === so.key && s.chipTActief]}>{so.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {soort === 'bonus_punten' ? (
+            <>
+              <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
+              <TextInput style={s.input} value={pct} onChangeText={setPct}
+                keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
+            </>
+          ) : null}
+
+          <View style={s.datumRij}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Van</Text>
+              <TextInput style={s.input} value={van} onChangeText={setVan}
+                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Tot</Text>
+              <TextInput style={s.input} value={tot} onChangeText={setTot}
+                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+            </View>
+          </View>
+
+          {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
+          <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie toevoegen</Text>}
+          </Pressable>
+          <Text style={s.tip}>Bovenaan bij de bezoekers komen? Straks kun je een actie "boosten" met credits.</Text>
+        </View>
+
+        <Text style={[s.blokTitel, { marginTop: 24, marginBottom: 4 }]}>Je acties</Text>
+        {acties.length === 0
+          ? <Text style={s.sub}>Nog geen acties.</Text>
+          : acties.map((a) => (
+            <View key={a.id} style={s.actieRij}>
+              <View style={{ flex: 1 }}>
+                <View style={s.actieTop}>
+                  <Text style={s.actieTitel}>{a.titel}</Text>
+                  {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ uitgelicht</Text> : null}
+                </View>
+                <Text style={s.actieSub}>
+                  {naamVan(a.attractie_id)}
+                  {a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
+                  {' · '}{toonDatum(a.van)} → {toonDatum(a.tot)}
+                </Text>
+              </View>
+              <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Verwijderen</Text></Pressable>
+            </View>
+          ))}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  )
+}
+
+const s = StyleSheet.create({
+  scherm: { flex: 1, backgroundColor: C.bg },
+  wrap: { padding: 24, paddingTop: 60, maxWidth: 520, width: '100%', alignSelf: 'center', flexGrow: 1 },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
+  titel: { color: C.ink, fontSize: 27, fontWeight: '900', letterSpacing: -0.4 },
+  sub: { color: C.muted, fontSize: 14.5, marginTop: 6 },
+  kaart: {
+    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 18,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
+  },
+  blokTitel: { color: C.ink, fontSize: 16, fontWeight: '800' },
+  label: { color: C.muted, fontSize: 13, fontWeight: '700', marginBottom: 7 },
+  input: { backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { backgroundColor: C.veld, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: C.line },
+  chipActief: { backgroundColor: C.violet, borderColor: C.violet },
+  chipT: { color: C.ink, fontWeight: '700', fontSize: 13.5 },
+  chipTActief: { color: '#fff' },
+  datumRij: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  knop: { borderRadius: 13, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  knopViolet: { backgroundColor: C.violet },
+  knopVioletT: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  knopUit: { opacity: 0.5 },
+  tip: { color: C.muted, fontSize: 12, marginTop: 10 },
+  foutBox: { backgroundColor: C.redbg, borderRadius: 11, padding: 12, marginTop: 16 },
+  foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  actieRij: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 16, marginTop: 10 },
+  actieTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
+  boostBadge: { color: C.amber, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  actieSub: { color: C.muted, fontSize: 12.5, marginTop: 3 },
+  verwijder: { color: C.red, fontSize: 13, fontWeight: '700' },
+})

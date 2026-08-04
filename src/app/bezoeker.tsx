@@ -104,6 +104,7 @@ function Home({ session }: { session: Session }) {
   const [isBez, setIsBez] = useState<boolean | null>(null)
   const [kramen, setKramen] = useState<Kraam[]>([])
   const [kermissen, setKermissen] = useState<Kermis[]>([])
+  const [acties, setActies] = useState<any[]>([])
   const [stats, setStats] = useState({ punten: 0, bezocht: 0, streak: 0, lunapark: false })
   const [laden, setLaden] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -115,12 +116,13 @@ function Home({ session }: { session: Session }) {
       setNaam(bez?.naam ?? ''); setCode(bez?.code ?? null); setIsBez(!!bez)
 
       const todayISO = new Date().toISOString().slice(0, 10)
-      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }] = await Promise.all([
+      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }] = await Promise.all([
         supabase.from('attractie_publiek').select('id, naam, soort'),
         supabase.from('saldo').select('attractie_id, saldo'),
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
         supabase.from('kermis').select('id, naam, plaats, van, tot').gte('tot', todayISO).order('van'),
         supabase.from('kermis_attractie').select('kermis_id'),
+        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot').eq('actief', true).gte('tot', todayISO),
       ])
 
       const saldoMap = new Map<string, number>()
@@ -144,6 +146,15 @@ function Home({ session }: { session: Session }) {
       const cnt = new Map<string, number>()
       ;(ka ?? []).forEach((r: any) => cnt.set(r.kermis_id, (cnt.get(r.kermis_id) ?? 0) + 1))
       setKermissen((kerm ?? []).map((k: any) => ({ ...k, kramen: cnt.get(k.id) ?? 0 })))
+
+      const naamMap = new Map<string, string>(attrLijst.map((a) => [a.id, a.naam]))
+      const nu = Date.now()
+      const actLijst = (act ?? []).map((x: any) => ({
+        ...x, kraam: naamMap.get(x.attractie_id) ?? '',
+        geboost: !!x.boost_tot && new Date(x.boost_tot).getTime() > nu,
+      })).sort((p: any, q: any) => (q.geboost ? 1 : 0) - (p.geboost ? 1 : 0) || String(p.van).localeCompare(String(q.van)))
+      setActies(actLijst)
+
       setLaden(false)
     })()
   }, [])
@@ -190,6 +201,29 @@ function Home({ session }: { session: Session }) {
             <View style={s.heroStat}><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten gespaard</Text></View>
           </View>
         </View>
+
+        {acties.length > 0 ? (
+          <>
+            <Text style={s.sectie}>🔥 Acties & deals</Text>
+            <View style={{ gap: 10 }}>
+              {acties.map((a) => (
+                <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]} onPress={() => router.push(`/kraam/${a.attractie_id}`)}>
+                  {a.geboost ? <Text style={s.uitgelicht}>⭐ UITGELICHT</Text> : null}
+                  <View style={s.actieBinnen}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.actieTitel}>{a.titel}</Text>
+                      <Text style={s.actieKraam}>{a.kraam}</Text>
+                      {a.beschrijving ? <Text style={s.actieDesc}>{a.beschrijving}</Text> : null}
+                    </View>
+                    {a.soort === 'bonus_punten' && a.bonus_pct ? (
+                      <View style={s.bonusChip}><Text style={s.bonusChipT}>+{a.bonus_pct}%</Text></View>
+                    ) : null}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Text style={s.sectie}>🏆 Challenges</Text>
         <View style={{ gap: 10 }}>
@@ -345,4 +379,14 @@ const s = StyleSheet.create({
   qrWit: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line },
   qrHint: { color: C.muted, fontSize: 12.5, marginTop: 12, textAlign: 'center' },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 30, opacity: 0.8 },
+  actieKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16 },
+  actieBoost: { borderColor: C.amber, borderWidth: 1.5, backgroundColor: 'rgba(245,158,11,0.05)' },
+  uitgelicht: { color: C.amber, fontSize: 10.5, fontWeight: '900', letterSpacing: 0.5, marginBottom: 8 },
+  actieBinnen: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
+  actieKraam: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
+  actieDesc: { color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  bonusChip: { backgroundColor: C.green, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  bonusChipT: { color: '#fff', fontWeight: '900', fontSize: 15 },
 })
+
