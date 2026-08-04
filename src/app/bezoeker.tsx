@@ -191,10 +191,6 @@ function Home({ session }: { session: Session }) {
 
         <View style={s.hero}>
           <Text style={s.heroHi}>Hallo{voornaam ? `, ${voornaam}` : ''} 👋</Text>
-          <View style={s.streakRij}>
-            <Text style={s.streakBig}>🔥 {stats.streak}</Text>
-            <Text style={s.streakLbl}>dag{stats.streak === 1 ? '' : 'en'}-reeks</Text>
-          </View>
           <View style={s.heroStats}>
             <View style={s.heroStat}><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>kramen bezocht</Text></View>
             <View style={s.heroLijn} />
