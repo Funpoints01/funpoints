@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
 import { supabase } from '../../lib/supabase'
 
@@ -16,6 +17,8 @@ type Kermis = { id: string; naam: string; plaats: string; van: string; tot: stri
 export default function KraamDetail() {
   const router = useRouter()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const insets = useSafeAreaInsets()
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   const [attr, setAttr] = useState<any>(null)
   const [kermissen, setKermissen] = useState<Kermis[]>([])
   const [code, setCode] = useState<string | null>(null)
@@ -61,7 +64,7 @@ export default function KraamDetail() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={s.wrap}>
+      <ScrollView contentContainerStyle={wrapC}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>

@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { DatumVeld } from '../components/DatumVeld'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -173,8 +174,8 @@ export default function Acties() {
     setFout('')
     if (!attrId) return setFout('Kies een attractie.')
     if (!titel.trim()) return setFout('Geef een titel.')
-    const vi = naarISO(van), ti = naarISO(tot)
-    if (!vi || !ti) return setFout('Geef de datums als DD-MM-JJJJ.')
+    if (!van || !tot) return setFout('Kies een begin- en einddatum.')
+    const vi = van, ti = tot
     if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
     const pctNum = !eenmalig && soort === 'bonus_punten' ? parseInt(pct, 10) : null
     if (!eenmalig && soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
@@ -288,13 +289,11 @@ export default function Acties() {
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
-              <TextInput style={s.input} value={van} onChangeText={setVan}
-                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+              <DatumVeld value={van} onChange={setVan} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Tot</Text>
-              <TextInput style={s.input} value={tot} onChangeText={setTot}
-                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+              <DatumVeld value={tot} onChange={setTot} />
             </View>
           </View>
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}

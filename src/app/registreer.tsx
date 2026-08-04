@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
+import { DatumVeld } from '../components/DatumVeld'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -23,12 +24,22 @@ function naarISO(s: string): string | null {
   return `${jaar}-${maand.padStart(2, '0')}-${dag.padStart(2, '0')}`
 }
 
+function leeftijdVan(iso: string): number {
+  const [j, m, d] = iso.split('-').map(Number)
+  const nu = new Date()
+  let leeftijd = nu.getFullYear() - j
+  const maandVerschil = (nu.getMonth() + 1) - m
+  if (maandVerschil < 0 || (maandVerschil === 0 && nu.getDate() < d)) leeftijd--
+  return leeftijd
+}
+
 export default function Registreer() {
   const router = useRouter()
   const { code } = useLocalSearchParams<{ code?: string }>()
-  const [naam, setNaam] = useState('')
+  const [voornaam, setVoornaam] = useState('')
+  const [achternaam, setAchternaam] = useState('')
   const [email, setEmail] = useState('')
-  const [gb, setGb] = useState('')
+  const [gbISO, setGbISO] = useState('')
   const [postcode, setPostcode] = useState('')
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
@@ -38,9 +49,13 @@ export default function Registreer() {
 
   async function registreer() {
     setFout('')
-    if (!naam.trim()) return setFout('Vul je naam in.')
-    const iso = naarISO(gb)
-    if (!iso) return setFout('Geef je geboortedatum als DD-MM-JJJJ.')
+    if (!voornaam.trim()) return setFout('Vul je voornaam in.')
+    if (!achternaam.trim()) return setFout('Vul je achternaam in.')
+    if (!gbISO) return setFout('Kies je geboortedatum.')
+    const iso = gbISO
+    const leeftijd = leeftijdVan(iso)
+    if (leeftijd < 0 || leeftijd > 120) return setFout('Controleer je geboortedatum.')
+    if (leeftijd < 13) return setFout('Je moet minstens 13 jaar zijn om zelf een account te maken. Vraag een ouder om je te helpen.')
     if (!/^\d{4}$/.test(postcode.trim())) return setFout('Geef een geldige postcode (4 cijfers).')
     if (!email.trim()) return setFout('Vul je e-mailadres in.')
     if (ww.length < 6) return setFout('Kies een wachtwoord van minstens 6 tekens.')
@@ -61,7 +76,7 @@ export default function Registreer() {
     }
     // Profiel opslaan
     const { error: e2 } = await supabase.from('bezoeker').insert({
-      auth_user_id: data.user.id, naam: naam.trim(), email: email.trim(),
+      auth_user_id: data.user.id, naam: `${voornaam.trim()} ${achternaam.trim()}`, email: email.trim(),
       geboortedatum: iso, postcode: postcode.trim(),
     })
     if (e2) {
@@ -96,9 +111,18 @@ export default function Registreer() {
         </Text>
 
         <View style={s.kaart}>
-          <Text style={s.label}>Naam</Text>
-          <TextInput style={s.input} value={naam} onChangeText={setNaam}
-            placeholder="Voor- en achternaam" placeholderTextColor={C.muted} />
+          <View style={s.naamRij}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Voornaam</Text>
+              <TextInput style={s.input} value={voornaam} onChangeText={setVoornaam}
+                placeholder="Voornaam" placeholderTextColor={C.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Achternaam</Text>
+              <TextInput style={s.input} value={achternaam} onChangeText={setAchternaam}
+                placeholder="Achternaam" placeholderTextColor={C.muted} />
+            </View>
+          </View>
 
           <Text style={[s.label, { marginTop: 14 }]}>E-mail</Text>
           <TextInput style={s.input} value={email} onChangeText={setEmail}
@@ -106,9 +130,7 @@ export default function Registreer() {
             placeholder="jij@voorbeeld.be" placeholderTextColor={C.muted} />
 
           <Text style={[s.label, { marginTop: 14 }]}>Geboortedatum</Text>
-          <TextInput style={s.input} value={gb} onChangeText={setGb}
-            keyboardType="numbers-and-punctuation"
-            placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+          <DatumVeld value={gbISO} onChange={setGbISO} />
 
           <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
           <TextInput style={s.input} value={postcode} onChangeText={setPostcode}
@@ -148,6 +170,7 @@ const s = StyleSheet.create({
     backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 18,
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
+  naamRij: { flexDirection: 'row', gap: 12 },
   label: { color: C.muted, fontSize: 13, fontWeight: '700', marginBottom: 7 },
   input: {
     backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line,

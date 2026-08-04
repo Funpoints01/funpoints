@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 
 const C = {
@@ -15,6 +16,8 @@ type Attr = { id: string; naam: string; soort: string }
 export default function KermisDetail() {
   const router = useRouter()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const insets = useSafeAreaInsets()
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   const [kermis, setKermis] = useState<any>(null)
   const [kramen, setKramen] = useState<Attr[]>([])
   const [laden, setLaden] = useState(true)
@@ -41,7 +44,7 @@ export default function KermisDetail() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={s.wrap}>
+      <ScrollView contentContainerStyle={wrapC}>
         <Pressable onPress={() => router.back()} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>

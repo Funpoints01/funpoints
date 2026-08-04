@@ -47,7 +47,8 @@
         {
           "cameraPermission": "Funpoints gebruikt de camera om QR-codes te scannen."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

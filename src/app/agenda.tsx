@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { DatumVeld } from '../components/DatumVeld'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -66,8 +67,8 @@ export default function Agenda() {
     setFout('')
     if (!attrId) return setFout('Kies eerst een attractie.')
     if (!naam.trim()) return setFout('Geef een naam of plaats.')
-    const vi = naarISO(van), ti = naarISO(tot)
-    if (!vi || !ti) return setFout('Geef de datums als DD-MM-JJJJ.')
+    if (!van || !tot) return setFout('Kies een begin- en einddatum.')
+    const vi = van, ti = tot
     if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
     setBezig(true)
     const { error } = await supabase.from('locatie').insert({ attractie_id: attrId, naam: naam.trim(), van: vi, tot: ti })
@@ -125,13 +126,11 @@ export default function Agenda() {
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
-              <TextInput style={s.input} value={van} onChangeText={setVan}
-                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+              <DatumVeld value={van} onChange={setVan} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Tot</Text>
-              <TextInput style={s.input} value={tot} onChangeText={setTot}
-                keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
+              <DatumVeld value={tot} onChange={setTot} />
             </View>
           </View>
 
