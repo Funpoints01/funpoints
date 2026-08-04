@@ -31,7 +31,7 @@ function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).get
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean }
 
 export default function Acties() {
   const router = useRouter()
@@ -44,6 +44,7 @@ export default function Acties() {
   const [attrId, setAttrId] = useState('')
   const [titel, setTitel] = useState('')
   const [beschrijving, setBeschrijving] = useState('')
+  const [eenmalig, setEenmalig] = useState(false)
   const [soort, setSoort] = useState('promo')
   const [pct, setPct] = useState('')
   const [van, setVan] = useState('')
@@ -63,7 +64,7 @@ export default function Acties() {
     const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
       supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
-      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot').order('van'),
+      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig').order('van'),
     ])
     setCredits(u?.credits ?? 0)
     const lijst = (att ?? []) as Attr[]
@@ -81,16 +82,16 @@ export default function Acties() {
     const vi = naarISO(van), ti = naarISO(tot)
     if (!vi || !ti) return setFout('Geef de datums als DD-MM-JJJJ.')
     if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
-    const pctNum = soort === 'bonus_punten' ? parseInt(pct, 10) : null
-    if (soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
+    const pctNum = !eenmalig && soort === 'bonus_punten' ? parseInt(pct, 10) : null
+    if (!eenmalig && soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
     setBezig(true)
     const { error } = await supabase.from('actie').insert({
       attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
-      soort, bonus_pct: pctNum, van: vi, tot: ti,
+      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig,
     })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
-    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo')
+    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     herlaad()
   }
 
@@ -153,21 +154,43 @@ export default function Acties() {
           <Text style={[s.label, { marginTop: 14 }]}>Beschrijving (optioneel)</Text>
           <TextInput style={s.input} value={beschrijving} onChangeText={setBeschrijving}
             placeholder="korte uitleg" placeholderTextColor={C.muted} />
-          <Text style={[s.label, { marginTop: 14 }]}>Soort</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>Type actie</Text>
           <View style={s.chips}>
-            {SOORTEN.map((so) => (
-              <Pressable key={so.key} onPress={() => setSoort(so.key)} style={[s.chip, soort === so.key && s.chipActief]}>
-                <Text style={[s.chipT, soort === so.key && s.chipTActief]}>{so.label}</Text>
-              </Pressable>
-            ))}
+            <Pressable onPress={() => setEenmalig(false)} style={[s.chip, !eenmalig && s.chipActief]}>
+              <Text style={[s.chipT, !eenmalig && s.chipTActief]}>Punten-actie</Text>
+            </Pressable>
+            <Pressable onPress={() => setEenmalig(true)} style={[s.chip, eenmalig && s.chipActief]}>
+              <Text style={[s.chipT, eenmalig && s.chipTActief]}>🎟️ Eenmalige voucher</Text>
+            </Pressable>
           </View>
-          {soort === 'bonus_punten' ? (
+
+          {eenmalig ? (
+            <View style={s.voucherHint}>
+              <Text style={s.voucherHintT}>
+                Bezoekers halen hiervoor een persoonlijke QR op. De foorkramer scant die één keer:
+                groen bij inwisselen, rood als ze het nog eens proberen. Zet de deal in de titel,
+                bv. “3 gratis oliebollen”.
+              </Text>
+            </View>
+          ) : (
             <>
-              <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
-              <TextInput style={s.input} value={pct} onChangeText={setPct}
-                keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
+              <Text style={[s.label, { marginTop: 14 }]}>Soort</Text>
+              <View style={s.chips}>
+                {SOORTEN.map((so) => (
+                  <Pressable key={so.key} onPress={() => setSoort(so.key)} style={[s.chip, soort === so.key && s.chipActief]}>
+                    <Text style={[s.chipT, soort === so.key && s.chipTActief]}>{so.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {soort === 'bonus_punten' ? (
+                <>
+                  <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
+                  <TextInput style={s.input} value={pct} onChangeText={setPct}
+                    keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
@@ -195,11 +218,12 @@ export default function Acties() {
                 <View style={{ flex: 1 }}>
                   <View style={s.actieTop}>
                     <Text style={s.actieTitel}>{a.titel}</Text>
+                    {a.eenmalig ? <Text style={s.voucherBadge}>🎟️ voucher</Text> : null}
                     {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ tot {boostTot(a.boost_tot!)}</Text> : null}
                   </View>
                   <Text style={s.actieSub}>
                     {naamVan(a.attractie_id)}
-                    {a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
+                    {!a.eenmalig && a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
                     {' · '}{toonDatum(a.van)} → {toonDatum(a.tot)}
                   </Text>
                 </View>
@@ -274,6 +298,9 @@ const s = StyleSheet.create({
   actieTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
   boostBadge: { color: C.amber, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  voucherBadge: { color: C.green, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(16,185,129,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  voucherHint: { backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 12, padding: 14, marginTop: 12 },
+  voucherHintT: { color: '#0E7C5A', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   actieSub: { color: C.muted, fontSize: 12.5, marginTop: 3 },
   verwijder: { color: C.red, fontSize: 13, fontWeight: '700', marginLeft: 10 },
   boostKnop: { marginTop: 12, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 11, paddingVertical: 11, alignItems: 'center' },

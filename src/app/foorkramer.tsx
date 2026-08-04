@@ -165,6 +165,15 @@ function Boeken({ session }: { session: Session }) {
   const [scannerOpen, setScannerOpen] = useState(false)
   const [klantSaldo, setKlantSaldo] = useState<number | null>(null)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+  const [voucher, setVoucher] = useState<{ status: string; titel?: string; gebruikt_op?: string } | null>(null)
+  const [voucherBezig, setVoucherBezig] = useState(false)
+
+  async function wisselVoucher(vcode: string) {
+    setVoucherBezig(true)
+    const { data, error } = await supabase.rpc('wissel_actie_in', { p_code: vcode })
+    setVoucherBezig(false)
+    setVoucher(error ? { status: 'fout' } : (data as any))
+  }
 
   async function haalSaldo(rawCode: string, bez: boolean) {
     const c = rawCode.trim()
@@ -205,11 +214,47 @@ function Boeken({ session }: { session: Session }) {
     }
   }
 
+  if (voucherBezig) {
+    return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.green} size="large" /></View>
+  }
+
+  if (voucher) {
+    const ok = voucher.status === 'ok'
+    const T: Record<string, { kop: string; tekst: string }> = {
+      ok: { kop: '✓ Geldig', tekst: 'Voucher ingewisseld. Geef de klant zijn actie.' },
+      reeds_gebruikt: { kop: '✗ Al gebruikt', tekst: voucher.gebruikt_op ? `Deze voucher werd al ingewisseld op ${new Date(voucher.gebruikt_op).toLocaleString('nl-BE')}.` : 'Deze voucher werd al ingewisseld.' },
+      verkeerd_kraam: { kop: '✗ Ander kraam', tekst: 'Deze voucher hoort bij een andere attractie.' },
+      verlopen: { kop: '✗ Verlopen', tekst: 'Deze actie is niet meer geldig.' },
+      onbekend: { kop: '✗ Onbekend', tekst: 'Deze QR is geen geldige Funpoints-voucher.' },
+      fout: { kop: '✗ Mislukt', tekst: 'Er ging iets mis. Probeer opnieuw.' },
+    }
+    const info = T[voucher.status] ?? T.fout
+    return (
+      <View style={[s.scherm, s.center, { backgroundColor: ok ? C.green : C.red, padding: 30 }]}>
+        <Text style={s.vIcoon}>{ok ? '✓' : '✗'}</Text>
+        {voucher.titel ? <Text style={s.vTitel}>{voucher.titel}</Text> : null}
+        <Text style={s.vKop}>{info.kop.replace(/[✓✗]\s*/, '')}</Text>
+        <Text style={s.vTekst}>{info.tekst}</Text>
+        <Pressable style={s.vKnop} onPress={() => { setVoucher(null); setScannerOpen(true) }}>
+          <Text style={s.vKnopT}>Volgende klant scannen</Text>
+        </Pressable>
+        <Pressable style={{ marginTop: 14 }} onPress={() => setVoucher(null)}>
+          <Text style={s.vKlaar}>Klaar</Text>
+        </Pressable>
+      </View>
+    )
+  }
+
   if (scannerOpen) {
     return (
       <Scanner
         onScan={(d) => {
           const raw = d.trim()
+          setScannerOpen(false)
+          if (raw.startsWith('FP-V:')) {
+            wisselVoucher(raw.slice(5).trim())
+            return
+          }
           let c = ''; let bez = false
           if (raw.startsWith('FP-B:')) {
             c = (raw.split(':')[1] ?? '').trim(); bez = true
@@ -217,7 +262,7 @@ function Boeken({ session }: { session: Session }) {
             c = raw.toUpperCase(); bez = false
           }
           setCode(c); setIsBezoeker(bez)
-          setScannerOpen(false); setMelding(null)
+          setMelding(null)
           haalSaldo(c, bez)
         }}
         onSluit={() => setScannerOpen(false)}
@@ -354,4 +399,11 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
   },
   scanUitleg: { color: C.ink, fontSize: 15.5, textAlign: 'center', lineHeight: 22, marginBottom: 22 },
+  vIcoon: { color: '#fff', fontSize: 96, fontWeight: '900', lineHeight: 104 },
+  vTitel: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+  vKop: { color: '#fff', fontSize: 30, fontWeight: '900', textAlign: 'center', marginTop: 10 },
+  vTekst: { color: 'rgba(255,255,255,0.92)', fontSize: 16, textAlign: 'center', marginTop: 10, lineHeight: 23 },
+  vKnop: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 14, paddingVertical: 15, paddingHorizontal: 24, marginTop: 32, alignSelf: 'stretch', alignItems: 'center' },
+  vKnopT: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  vKlaar: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 15 },
 })

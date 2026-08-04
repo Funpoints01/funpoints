@@ -108,6 +108,22 @@ function Home({ session }: { session: Session }) {
   const [stats, setStats] = useState({ punten: 0, bezocht: 0, streak: 0, lunapark: false })
   const [laden, setLaden] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [vActie, setVActie] = useState<any | null>(null)
+  const [vCode, setVCode] = useState<string | null>(null)
+  const [vGebruikt, setVGebruikt] = useState<string | null>(null)
+  const [vLaden, setVLaden] = useState(false)
+
+  async function toonVoucher(a: any) {
+    setVActie(a); setVCode(null); setVGebruikt(null); setVLaden(true)
+    const { data, error } = await supabase.rpc('claim_actie', { p_actie_id: a.id })
+    if (!error && data) {
+      setVCode(data as string)
+      const { data: cl } = await supabase.from('actie_claim')
+        .select('gebruikt_op').eq('actie_id', a.id).maybeSingle()
+      setVGebruikt(cl?.gebruikt_op ?? null)
+    }
+    setVLaden(false)
+  }
 
   useEffect(() => {
     (async () => {
@@ -122,7 +138,7 @@ function Home({ session }: { session: Session }) {
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
         supabase.from('kermis').select('id, naam, plaats, van, tot').gte('tot', todayISO).order('van'),
         supabase.from('kermis_attractie').select('kermis_id'),
-        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot').eq('actief', true).gte('tot', todayISO),
+        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
       ])
 
       const saldoMap = new Map<string, number>()
@@ -203,15 +219,19 @@ function Home({ session }: { session: Session }) {
             <Text style={s.sectie}>🔥 Acties & deals</Text>
             <View style={{ gap: 10 }}>
               {acties.map((a) => (
-                <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]} onPress={() => router.push(`/kraam/${a.attractie_id}`)}>
+                <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]}
+                  onPress={() => a.eenmalig ? toonVoucher(a) : router.push(`/kraam/${a.attractie_id}`)}>
                   {a.geboost ? <Text style={s.uitgelicht}>⭐ UITGELICHT</Text> : null}
                   <View style={s.actieBinnen}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.actieTitel}>{a.titel}</Text>
                       <Text style={s.actieKraam}>{a.kraam}</Text>
                       {a.beschrijving ? <Text style={s.actieDesc}>{a.beschrijving}</Text> : null}
+                      {a.eenmalig ? <Text style={s.voucherTag}>🎟️ Tik om je voucher op te halen</Text> : null}
                     </View>
-                    {a.soort === 'bonus_punten' && a.bonus_pct ? (
+                    {a.eenmalig ? (
+                      <View style={s.voucherChip}><Text style={s.voucherChipT}>voucher</Text></View>
+                    ) : a.soort === 'bonus_punten' && a.bonus_pct ? (
                       <View style={s.bonusChip}><Text style={s.bonusChipT}>+{a.bonus_pct}%</Text></View>
                     ) : null}
                   </View>
@@ -303,6 +323,41 @@ function Home({ session }: { session: Session }) {
 
         <Text style={s.voet}>Funpoints · meer belevenis komt eraan 🎠</Text>
       </ScrollView>
+
+      {vActie ? (
+        <View style={s.vOverlay}>
+          <View style={s.vModal}>
+            <Text style={s.vModalKraam}>{vActie.kraam}</Text>
+            <Text style={s.vModalTitel}>{vActie.titel}</Text>
+            {vActie.beschrijving ? <Text style={s.vModalDesc}>{vActie.beschrijving}</Text> : null}
+
+            {vLaden ? (
+              <View style={{ paddingVertical: 40 }}><ActivityIndicator color={C.coral} size="large" /></View>
+            ) : vCode ? (
+              vGebruikt ? (
+                <View style={s.vGebruiktVak}>
+                  <Text style={s.vGebruiktIcon}>✓</Text>
+                  <Text style={s.vGebruiktT}>Al ingewisseld</Text>
+                  <Text style={s.vGebruiktSub}>op {new Date(vGebruikt).toLocaleString('nl-BE')}</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={s.vQrWit}>
+                    <QRCode value={`FP-V:${vCode}`} size={200} backgroundColor="#FFFFFF" color="#241B3A" />
+                  </View>
+                  <Text style={s.vModalHint}>Toon deze QR aan de foorkramer. Hij kan hem één keer scannen.</Text>
+                </>
+              )
+            ) : (
+              <Text style={s.vModalFout}>Voucher ophalen mislukt. Probeer straks opnieuw.</Text>
+            )}
+
+            <Pressable style={s.vSluit} onPress={() => setVActie(null)}>
+              <Text style={s.vSluitT}>Sluiten</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -396,6 +451,29 @@ const s = StyleSheet.create({
   actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
   actieKraam: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
   actieDesc: { color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  voucherTag: { color: C.green, fontSize: 12.5, fontWeight: '800', marginTop: 6 },
+  voucherChip: { backgroundColor: 'rgba(16,185,129,0.14)', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+  voucherChipT: { color: C.green, fontWeight: '800', fontSize: 12.5 },
+  vOverlay: {
+    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+    backgroundColor: 'rgba(36,27,58,0.55)', justifyContent: 'center', alignItems: 'center', padding: 26,
+  },
+  vModal: {
+    backgroundColor: C.card, borderRadius: 22, padding: 24, width: '100%', maxWidth: 380, alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 30, shadowOffset: { width: 0, height: 16 }, elevation: 8,
+  },
+  vModalKraam: { color: C.muted, fontSize: 13, fontWeight: '700' },
+  vModalTitel: { color: C.ink, fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 4 },
+  vModalDesc: { color: C.muted, fontSize: 13.5, textAlign: 'center', marginTop: 6, lineHeight: 19 },
+  vQrWit: { backgroundColor: '#fff', padding: 16, borderRadius: 18, borderWidth: 1, borderColor: C.line, marginTop: 20 },
+  vModalHint: { color: C.muted, fontSize: 12.5, textAlign: 'center', marginTop: 14, lineHeight: 18 },
+  vModalFout: { color: C.red, fontSize: 14, textAlign: 'center', marginVertical: 24, fontWeight: '600' },
+  vGebruiktVak: { alignItems: 'center', paddingVertical: 26 },
+  vGebruiktIcon: { color: C.green, fontSize: 54, fontWeight: '900' },
+  vGebruiktT: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 6 },
+  vGebruiktSub: { color: C.muted, fontSize: 13, marginTop: 4 },
+  vSluit: { marginTop: 20, paddingVertical: 12, paddingHorizontal: 28 },
+  vSluitT: { color: C.coralD, fontSize: 15, fontWeight: '800' },
   bonusChip: { backgroundColor: C.green, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   bonusChipT: { color: '#fff', fontWeight: '900', fontSize: 15 },
 })
