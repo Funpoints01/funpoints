@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Redirect, useRouter } from 'expo-router'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 
 const C = {
   bg: '#FFF8F0', ink: '#241B3A', muted: '#7A7290',
@@ -18,6 +18,13 @@ const ROLLEN = [
 
 export default function Landing() {
   const router = useRouter()
+
+  // In de native app (App Store / Play) tonen we enkel de bezoekerskant.
+  // De rol-keuze blijft alleen op het web (foorkramer = PWA, uitbater = desktop).
+  if (Platform.OS !== 'web') {
+    return <Redirect href="/bezoeker" />
+  }
+
   return (
     <View style={s.scherm}>
       <View style={[s.blob, { backgroundColor: C.amber, top: -70, right: -50 }]} />

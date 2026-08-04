@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -14,11 +16,14 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#FFF8F0' },
-      }}
-    />
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#FFF8F0' },
+        }}
+      />
+    </SafeAreaProvider>
   );
 }

@@ -129,6 +129,16 @@ function Home({ session }: { session: Session }) {
   const [fPostcode, setFPostcode] = useState('')
   const [profielBezig, setProfielBezig] = useState(false)
   const [profielMelding, setProfielMelding] = useState<string | null>(null)
+  const [verwijderStap, setVerwijderStap] = useState(0)
+  const [verwijderBezig, setVerwijderBezig] = useState(false)
+
+  async function verwijderAccount() {
+    setVerwijderBezig(true)
+    const { error } = await supabase.rpc('verwijder_mijn_account')
+    if (error) { setVerwijderBezig(false); setVerwijderStap(0); setProfielMelding('Account verwijderen mislukt. Probeer later opnieuw.'); return }
+    await supabase.auth.signOut()
+    router.push('/')
+  }
 
   async function bewaarProfiel() {
     if (!bezId) return
@@ -449,6 +459,30 @@ function Home({ session }: { session: Session }) {
         <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} style={[s.knop, s.knopWit, { marginTop: 22 }]}>
           <Text style={s.knopWitT}>Uitloggen</Text>
         </Pressable>
+
+        <Text style={[s.sectie, { marginTop: 22 }]}>Account</Text>
+        <View style={s.kaart}>
+          {verwijderStap === 0 ? (
+            <Pressable onPress={() => setVerwijderStap(1)} hitSlop={6}>
+              <Text style={s.gevaarLink}>Account verwijderen</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Text style={s.gevaarUitleg}>
+                Weet je het zeker? Je account, je gespaarde punten en al je gegevens worden
+                definitief verwijderd. Dit kan niet ongedaan gemaakt worden.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <Pressable onPress={() => setVerwijderStap(0)} style={[s.knop, s.knopWit, { flex: 1, marginTop: 0 }]}>
+                  <Text style={s.knopWitT}>Annuleren</Text>
+                </Pressable>
+                <Pressable onPress={verwijderAccount} disabled={verwijderBezig} style={[s.knop, s.knopGevaar, { flex: 1, marginTop: 0 }, verwijderBezig && { opacity: 0.5 }]}>
+                  {verwijderBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopGevaarT}>Definitief verwijderen</Text>}
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
       </ScrollView>
       ) : null}
 
@@ -540,6 +574,10 @@ const s = StyleSheet.create({
   miniKnopAan: { backgroundColor: C.green, borderColor: C.green },
   miniKnopT: { color: C.muted, fontWeight: '800', fontSize: 13.5 },
   miniKnopTAan: { color: '#fff' },
+  gevaarLink: { color: C.red, fontSize: 15, fontWeight: '700', textAlign: 'center', paddingVertical: 4 },
+  gevaarUitleg: { color: C.muted, fontSize: 13.5, lineHeight: 20 },
+  knopGevaar: { backgroundColor: C.red },
+  knopGevaarT: { color: '#fff', fontWeight: '800', fontSize: 15 },
   center: { justifyContent: 'center', alignItems: 'center' },
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
   logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
