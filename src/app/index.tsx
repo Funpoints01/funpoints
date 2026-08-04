@@ -11,7 +11,7 @@ const ROLLEN = [
   { key: 'foorkramer', href: '/foorkramer', emoji: '🎯', kleur: C.green,
     titel: 'Foorkramer', sub: 'Scan kaartjes en boek punten aan de kraam.', klaar: true },
   { key: 'uitbater', href: '/uitbater', emoji: '📊', kleur: C.violet,
-    titel: 'Uitbater', sub: 'Beheer je attracties en bekijk je cijfers.', klaar: false },
+    titel: 'Uitbater', sub: 'Beheer je attracties en bekijk je cijfers.', klaar: true },
   { key: 'bezoeker', href: '/bezoeker', emoji: '🎟️', kleur: C.coral,
     titel: 'Bezoeker', sub: 'Spaar punten en bekijk je saldo.', klaar: true },
 ] as const
