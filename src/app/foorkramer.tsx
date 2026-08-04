@@ -163,7 +163,17 @@ function Boeken({ session }: { session: Session }) {
   const [punten, setPunten] = useState('')
   const [bezig, setBezig] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [klantSaldo, setKlantSaldo] = useState<number | null>(null)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+
+  async function haalSaldo(rawCode: string, bez: boolean) {
+    const c = rawCode.trim()
+    if (!c) { setKlantSaldo(null); return }
+    const { data, error } = bez
+      ? await supabase.rpc('huidig_saldo', { p_bezoeker_code: c })
+      : await supabase.rpc('huidig_saldo', { p_kaartje_code: c })
+    setKlantSaldo(error ? null : (data as number))
+  }
 
   useEffect(() => {
     supabase.from('attractie').select('naam')
@@ -191,6 +201,7 @@ function Boeken({ session }: { session: Session }) {
       const teken = soort === 'toevoegen' ? '+' : '−'
       setMelding({ ok: true, tekst: `${teken}${n} geboekt. Nieuw saldo: ${data} punten.` })
       setPunten('')
+      setKlantSaldo(data as number)
     }
   }
 
@@ -199,12 +210,15 @@ function Boeken({ session }: { session: Session }) {
       <Scanner
         onScan={(d) => {
           const raw = d.trim()
+          let c = ''; let bez = false
           if (raw.startsWith('FP-B:')) {
-            setCode((raw.split(':')[1] ?? '').trim()); setIsBezoeker(true)
+            c = (raw.split(':')[1] ?? '').trim(); bez = true
           } else {
-            setCode(raw.toUpperCase()); setIsBezoeker(false)
+            c = raw.toUpperCase(); bez = false
           }
+          setCode(c); setIsBezoeker(bez)
           setScannerOpen(false); setMelding(null)
+          haalSaldo(c, bez)
         }}
         onSluit={() => setScannerOpen(false)}
       />
@@ -236,11 +250,19 @@ function Boeken({ session }: { session: Session }) {
           <Text style={[s.label, { marginTop: 18 }]}>Kaartje-code</Text>
           <TextInput
             style={s.input} value={code}
-            onChangeText={(t) => { setCode(t); setIsBezoeker(false) }}
+            onChangeText={(t) => { setCode(t); setIsBezoeker(false); setKlantSaldo(null) }}
+            onBlur={() => haalSaldo(code, isBezoeker)}
             autoCapitalize="characters" autoCorrect={false}
             placeholder="of typ bv. TEST123" placeholderTextColor={C.muted}
           />
           {isBezoeker ? <Text style={s.klantNote}>👤 Klant-QR herkend</Text> : null}
+
+          {klantSaldo !== null ? (
+            <View style={s.saldoInfo}>
+              <Text style={s.saldoInfoLabel}>Huidig saldo van deze klant</Text>
+              <Text style={s.saldoInfoT}>{klantSaldo} punten</Text>
+            </View>
+          ) : null}
 
           <Text style={[s.label, { marginTop: 14 }]}>Aantal punten</Text>
           <TextInput
@@ -313,6 +335,12 @@ const s = StyleSheet.create({
   okT: { color: C.greend },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 26, opacity: 0.7 },
   klantNote: { color: C.green, fontSize: 13, fontWeight: '700', marginTop: 8 },
+  saldoInfo: {
+    backgroundColor: C.okbg, borderRadius: 12, padding: 14, marginTop: 14,
+    alignItems: 'center',
+  },
+  saldoInfoLabel: { color: C.greend, fontSize: 13, fontWeight: '700' },
+  saldoInfoT: { color: C.greend, fontSize: 26, fontWeight: '900', marginTop: 2 },
   scanOverlay: {
     position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
     justifyContent: 'center', alignItems: 'center', padding: 28, gap: 20,
