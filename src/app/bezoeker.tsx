@@ -106,7 +106,7 @@ const TABS = [
   { key: 'kermissen', icon: '🎡', label: 'Kermissen' },
   { key: 'qr', icon: '🎟️', label: 'QR' },
   { key: 'saldo', icon: '⭐', label: 'Saldo' },
-  { key: 'settings', icon: '⚙️', label: 'Instellingen' },
+  { key: 'settings', icon: '⚙️', label: 'Settings' },
 ] as const
 
 function Home({ session }: { session: Session }) {
@@ -506,7 +506,7 @@ function Home({ session }: { session: Session }) {
         ) : (
           <Pressable key={t.key} style={s.tabItem} onPress={() => setTab(t.key)}>
             <Text style={[s.tabIcon, tab === t.key && s.tabIconAan]}>{t.icon}</Text>
-            <Text style={[s.tabLabel, tab === t.key && s.tabLabelAan]}>{t.label}</Text>
+            <Text numberOfLines={1} style={[s.tabLabel, tab === t.key && s.tabLabelAan]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
