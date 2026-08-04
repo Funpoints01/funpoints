@@ -218,14 +218,17 @@ function Home({ session }: { session: Session }) {
           ? <View style={s.leeg}><Text style={s.sub}>Nog geen kermissen gepland.</Text></View>
           : <View style={{ gap: 10 }}>
               {kermissen.map((k) => (
-                <View key={k.id} style={s.kermKaart}>
+                <Pressable key={k.id} style={s.kermKaart} onPress={() => router.push(`/kermis/${k.id}`)}>
                   <View style={s.kermIcon}><Text style={{ fontSize: 22 }}>🎡</Text></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.kermNaam}>{k.naam}</Text>
                     <Text style={s.kermSub}>{k.plaats} · {kort(k.van)} – {kort(k.tot)}</Text>
                   </View>
-                  <Text style={s.kermKramen}>{k.kramen} kramen</Text>
-                </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={s.kermKramen}>{k.kramen} kramen</Text>
+                    <Text style={s.kermChev}>bekijk ›</Text>
+                  </View>
+                </Pressable>
               ))}
             </View>}
 
@@ -233,26 +236,31 @@ function Home({ session }: { session: Session }) {
         <Text style={s.sub}>Tik op een kraam om je QR te tonen aan de foorkramer.</Text>
         <View style={{ gap: 10, marginTop: 10 }}>
           {kramen.map((k) => (
-            <Pressable key={k.id} style={s.kraart} onPress={() => setOpenId(openId === k.id ? null : k.id)}>
-              <View style={s.kraartRij}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.kraartNaam}>{k.naam}</Text>
-                  <Text style={s.kraartSoort}>{k.soort}</Text>
+            <View key={k.id} style={s.kraart}>
+              <Pressable onPress={() => setOpenId(openId === k.id ? null : k.id)}>
+                <View style={s.kraartRij}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.kraartNaam}>{k.naam}</Text>
+                    <Text style={s.kraartSoort}>{k.soort}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={s.saldoNum}>{k.saldo}</Text>
+                    <Text style={s.saldoLbl}>punten</Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={s.saldoNum}>{k.saldo}</Text>
-                  <Text style={s.saldoLbl}>punten</Text>
-                </View>
-              </View>
-              {openId === k.id ? (
-                <View style={s.qrBox}>
-                  {code
-                    ? <View style={s.qrWit}><QRCode value={`FP-B:${code}:${k.id}`} size={168} backgroundColor="#FFFFFF" color="#241B3A" /></View>
-                    : <Text style={s.kraartSoort}>QR wordt geladen…</Text>}
-                  <Text style={s.qrHint}>Toon deze QR aan de foorkramer van {k.naam}</Text>
-                </View>
-              ) : <Text style={s.toon}>Tik om je QR te tonen ›</Text>}
-            </Pressable>
+                {openId === k.id ? (
+                  <View style={s.qrBox}>
+                    {code
+                      ? <View style={s.qrWit}><QRCode value={`FP-B:${code}:${k.id}`} size={168} backgroundColor="#FFFFFF" color="#241B3A" /></View>
+                      : <Text style={s.kraartSoort}>QR wordt geladen…</Text>}
+                    <Text style={s.qrHint}>Toon deze QR aan de foorkramer van {k.naam}</Text>
+                  </View>
+                ) : <Text style={s.toon}>Tik om je QR te tonen ›</Text>}
+              </Pressable>
+              <Pressable onPress={() => router.push(`/kraam/${k.id}`)} style={s.detailLink}>
+                <Text style={s.detailLinkT}>📍 Waar staat dit kraam? ›</Text>
+              </Pressable>
+            </View>
           ))}
         </View>
 
@@ -322,6 +330,9 @@ const s = StyleSheet.create({
   kermNaam: { color: C.ink, fontSize: 16, fontWeight: '800' },
   kermSub: { color: C.muted, fontSize: 12.5, marginTop: 2 },
   kermKramen: { color: C.coralD, fontSize: 12.5, fontWeight: '800' },
+  kermChev: { color: C.coral, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
+  detailLink: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
+  detailLinkT: { color: C.coral, fontSize: 13.5, fontWeight: '700' },
 
   kraart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16 },
   kraartRij: { flexDirection: 'row', alignItems: 'center' },
