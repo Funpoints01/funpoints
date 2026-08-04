@@ -98,6 +98,13 @@ function streakVan(dagen: Set<string>): number {
   return streak
 }
 
+const TABS = [
+  { key: 'home', icon: '🏠', label: 'Home' },
+  { key: 'qr', icon: '🎟️', label: 'QR' },
+  { key: 'kermissen', icon: '🎡', label: 'Kermissen' },
+  { key: 'saldo', icon: '⭐', label: 'Saldo' },
+] as const
+
 function Home({ session }: { session: Session }) {
   const router = useRouter()
   const [naam, setNaam] = useState('')
@@ -115,6 +122,7 @@ function Home({ session }: { session: Session }) {
   const [vLaden, setVLaden] = useState(false)
   const [push, setPush] = useState<PushStatus>('niet')
   const [pushBezig, setPushBezig] = useState(false)
+  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('home')
 
   useEffect(() => { pushStatus().then(setPush) }, [])
 
@@ -209,7 +217,8 @@ function Home({ session }: { session: Session }) {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={s.wrap}>
+      {tab === 'home' ? (
+      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
         <View style={s.topbar}>
           <Logo />
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>
@@ -290,8 +299,12 @@ function Home({ session }: { session: Session }) {
             )
           })}
         </View>
+      </ScrollView>
+      ) : null}
 
-        <Text style={s.sectie}>🎪 Aankomende kermissen</Text>
+      {tab === 'kermissen' ? (
+      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+        <Text style={s.paginaTitel}>🎡 Kermissen</Text>
         {kermissen.length === 0
           ? <View style={s.leeg}><Text style={s.sub}>Nog geen kermissen gepland.</Text></View>
           : <View style={{ gap: 10 }}>
@@ -309,8 +322,12 @@ function Home({ session }: { session: Session }) {
                 </Pressable>
               ))}
             </View>}
+      </ScrollView>
+      ) : null}
 
-        <Text style={s.sectie}>🎟️ Mijn punten</Text>
+      {tab === 'qr' ? (
+      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+        <Text style={s.paginaTitel}>🎟️ Mijn QR</Text>
         <View style={s.qrKaart}>
           {code
             ? <View style={s.qrWit}><QRCode value={`FP-B:${code}`} size={196} backgroundColor="#FFFFFF" color="#241B3A" /></View>
@@ -321,7 +338,12 @@ function Home({ session }: { session: Session }) {
             automatisch bij dàt kraam bijgeschreven of ingeruild — nooit door elkaar.
           </Text>
         </View>
+      </ScrollView>
+      ) : null}
 
+      {tab === 'saldo' ? (
+      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+        <Text style={s.paginaTitel}>⭐ Mijn saldo's</Text>
         {kramen.some((k) => k.saldo !== 0) ? (
           <>
             <Text style={s.subKop}>Je saldo per kraam</Text>
@@ -348,9 +370,18 @@ function Home({ session }: { session: Session }) {
         ) : (
           <Text style={s.sub}>Je hebt nog geen punten gespaard. Laat je QR scannen bij een kraam om te beginnen.</Text>
         )}
-
         <Text style={s.voet}>Funpoints · meer belevenis komt eraan 🎠</Text>
       </ScrollView>
+      ) : null}
+
+      <View style={s.tabBar}>
+        {TABS.map((t) => (
+          <Pressable key={t.key} style={s.tabItem} onPress={() => setTab(t.key)}>
+            <Text style={[s.tabIcon, tab === t.key && s.tabIconAan]}>{t.icon}</Text>
+            <Text style={[s.tabLabel, tab === t.key && s.tabLabelAan]}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       {vActie ? (
         <View style={s.vOverlay}>
@@ -392,7 +423,18 @@ function Home({ session }: { session: Session }) {
 
 const s = StyleSheet.create({
   scherm: { flex: 1, backgroundColor: C.bg },
+  blad: { flex: 1 },
   wrap: { padding: 22, paddingTop: 56, paddingBottom: 40, maxWidth: 520, width: '100%', alignSelf: 'center', flexGrow: 1 },
+  paginaTitel: { color: C.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.4, marginBottom: 8 },
+  tabBar: {
+    flexDirection: 'row', backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line,
+    paddingTop: 9, paddingBottom: 24, paddingHorizontal: 6,
+  },
+  tabItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 3 },
+  tabIcon: { fontSize: 22, opacity: 0.45 },
+  tabIconAan: { opacity: 1 },
+  tabLabel: { color: C.muted, fontSize: 11, fontWeight: '700' },
+  tabLabelAan: { color: C.coralD },
   center: { justifyContent: 'center', alignItems: 'center' },
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
   logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -136,14 +136,18 @@ export default function Acties() {
     }
     const aantal = (data as any).aantal
     setCredits((data as any).credits)
-    const { error: fnErr } = await supabase.functions.invoke('verstuur-push', { body: { campagne_id: (data as any).campagne_id } })
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke('verstuur-push', { body: { campagne_id: (data as any).campagne_id } })
     setCampBezig(false)
-    setCampMelding({
-      ok: !fnErr,
-      tekst: fnErr
-        ? `Campagne aangemaakt voor ${aantal} bezoeker(s) en credits afgeboekt, maar de verzending gaf een fout. Controleer de Edge Function 'verstuur-push'.`
-        : `📣 Verzonden naar ${aantal} bezoeker(s). ${aantal} credit(s) gebruikt.`,
-    })
+    if (fnErr) {
+      let detail = (fnErr as any).message || 'onbekende fout'
+      try { const b = await (fnErr as any).context?.json?.(); if (b?.error) detail = b.error } catch {}
+      setCampMelding({ ok: false, tekst: `Credits afgeboekt, maar verzenden faalde: ${detail}` })
+    } else if ((fnData as any)?.error) {
+      setCampMelding({ ok: false, tekst: `Verzenden faalde: ${(fnData as any).error}` })
+    } else {
+      const verz = (fnData as any)?.verzonden
+      setCampMelding({ ok: true, tekst: `📣 Verzonden naar ${verz ?? aantal} bezoeker(s). ${aantal} credit(s) gebruikt.` })
+    }
   }
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
