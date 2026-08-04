@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
@@ -48,7 +48,7 @@ function Login() {
   }
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.wrapSmal} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/')} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
         <Logo />
         <Text style={s.titel}>Uitbater</Text>
@@ -74,10 +74,7 @@ function Login() {
 function laatsteDagen(n: number): Date[] {
   const uit: Date[] = []
   const nu = new Date()
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate() - i)
-    uit.push(d)
-  }
+  for (let i = n - 1; i >= 0; i--) uit.push(new Date(nu.getFullYear(), nu.getMonth(), nu.getDate() - i))
   return uit
 }
 function dagKey(d: Date): string {
@@ -88,7 +85,10 @@ type Attr = { id: string; naam: string; soort: string }
 
 function Dashboard({ session }: { session: Session }) {
   const router = useRouter()
-  const [naam, setNaam] = useState<string>('')
+  const { width } = useWindowDimensions()
+  const breed = width >= 820
+
+  const [naam, setNaam] = useState('')
   const [isUitbater, setIsUitbater] = useState<boolean | null>(null)
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [openstaand, setOpenstaand] = useState(0)
@@ -112,40 +112,25 @@ function Dashboard({ session }: { session: Session }) {
       ])
       const attrLijst = (att ?? []) as Attr[]
       setAttracties(attrLijst)
-
       const pa: Record<string, { saldo: number; boekingen: number }> = {}
       attrLijst.forEach((a) => { pa[a.id] = { saldo: 0, boekingen: 0 } })
       let tot = 0
-      ;(sal ?? []).forEach((r: any) => {
-        tot += r.saldo ?? 0
-        if (pa[r.attractie_id]) pa[r.attractie_id].saldo += r.saldo ?? 0
-      })
+      ;(sal ?? []).forEach((r: any) => { tot += r.saldo ?? 0; if (pa[r.attractie_id]) pa[r.attractie_id].saldo += r.saldo ?? 0 })
       setOpenstaand(tot)
-
       let up = 0, neer = 0
       const perDag: Record<string, number> = {}
       ;(boek ?? []).forEach((r: any) => {
-        if (r.soort === 'toevoegen') up += r.punten
-        else neer += Math.abs(r.punten)
+        if (r.soort === 'toevoegen') up += r.punten; else neer += Math.abs(r.punten)
         if (pa[r.attractie_id]) pa[r.attractie_id].boekingen += 1
-        if (r.soort === 'toevoegen') {
-          const k = String(r.created_at).slice(0, 10)
-          perDag[k] = (perDag[k] ?? 0) + r.punten
-        }
+        if (r.soort === 'toevoegen') { const k = String(r.created_at).slice(0, 10); perDag[k] = (perDag[k] ?? 0) + r.punten }
       })
       setOpgeladen(up); setIngewisseld(neer); setPerAttr(pa)
-
-      const reeks = laatsteDagen(14).map((d) => ({
-        label: `${d.getDate()}/${d.getMonth() + 1}`,
-        waarde: perDag[dagKey(d)] ?? 0,
-      }))
-      setDagen(reeks)
+      setDagen(laatsteDagen(14).map((d) => ({ label: `${d.getDate()}/${d.getMonth() + 1}`, waarde: perDag[dagKey(d)] ?? 0 })))
       setLaden(false)
     })()
   }, [])
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.violet} size="large" /></View>
-
   if (isUitbater === false) {
     return (
       <View style={[s.scherm, s.center, { padding: 28 }]}>
@@ -158,6 +143,12 @@ function Dashboard({ session }: { session: Session }) {
   }
 
   const maxDag = Math.max(1, ...dagen.map((d) => d.waarde))
+  const kpis = [
+    { num: openstaand, lbl: 'openstaande punten', kleur: C.green },
+    { num: attracties.length, lbl: 'attracties', kleur: C.ink },
+    { num: opgeladen, lbl: 'totaal opgeladen', kleur: C.ink },
+    { num: ingewisseld, lbl: 'ingewisseld', kleur: C.ink },
+  ]
 
   return (
     <View style={s.scherm}>
@@ -172,63 +163,60 @@ function Dashboard({ session }: { session: Session }) {
         <Text style={s.titel}>Dashboard</Text>
         <Text style={s.sub}>{naam ? `${naam} · ` : ''}{attracties.length} attractie{attracties.length === 1 ? '' : 's'}</Text>
 
-        <View style={s.kpiRij}>
-          <View style={[s.kpi, { borderColor: 'rgba(16,185,129,0.3)' }]}>
-            <Text style={[s.kpiNum, { color: C.green }]}>{openstaand}</Text>
-            <Text style={s.kpiLbl}>openstaande punten</Text>
-          </View>
-          <View style={s.kpi}>
-            <Text style={s.kpiNum}>{attracties.length}</Text>
-            <Text style={s.kpiLbl}>attracties</Text>
-          </View>
+        <View style={s.kpiWrap}>
+          {kpis.map((k, i) => (
+            <View key={i} style={s.kpi}>
+              <Text style={[s.kpiNum, { color: k.kleur }]}>{k.num}</Text>
+              <Text style={s.kpiLbl}>{k.lbl}</Text>
+            </View>
+          ))}
         </View>
-        <View style={s.kpiRij}>
-          <View style={s.kpi}>
-            <Text style={s.kpiNum}>{opgeladen}</Text>
-            <Text style={s.kpiLbl}>totaal opgeladen</Text>
+
+        <View style={[s.mainRow, { flexDirection: breed ? 'row' : 'column' }]}>
+          <View style={[s.blok, breed ? { flex: 2 } : null]}>
+            <Text style={s.blokTitel}>Punten opgeladen · 14 dagen</Text>
+            <View style={s.grafiek}>
+              {dagen.map((d, i) => (
+                <View key={i} style={s.balkKolom}>
+                  <View style={s.balkVak}>
+                    <View style={[s.balk, { height: `${Math.round((d.waarde / maxDag) * 100)}%` }]} />
+                  </View>
+                  <Text style={s.balkLbl}>{i % 2 === 0 ? d.label : ' '}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={s.grafiekVoet}>hoogste dag: {maxDag} punten</Text>
           </View>
-          <View style={s.kpi}>
-            <Text style={s.kpiNum}>{ingewisseld}</Text>
-            <Text style={s.kpiLbl}>ingewisseld</Text>
+
+          <View style={[breed ? { flex: 1 } : null, { gap: 16 }]}>
+            <View style={s.blok}>
+              <Text style={s.blokTitel}>Per attractie</Text>
+              {attracties.length === 0
+                ? <Text style={s.sub}>Nog geen attracties.</Text>
+                : attracties.map((a) => (
+                  <View key={a.id} style={s.attrRij}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.attrNaam}>{a.naam}</Text>
+                      <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.attrNum, { color: C.green }]}>{perAttr[a.id]?.saldo ?? 0}</Text>
+                      <Text style={s.attrSub}>open</Text>
+                    </View>
+                  </View>
+                ))}
+            </View>
           </View>
         </View>
 
-        <View style={s.blok}>
-          <Text style={s.blokTitel}>Punten opgeladen · 14 dagen</Text>
-          <View style={s.grafiek}>
-            {dagen.map((d, i) => (
-              <View key={i} style={s.balkKolom}>
-                <View style={s.balkVak}>
-                  <View style={[s.balk, { height: `${Math.round((d.waarde / maxDag) * 100)}%` }]} />
-                </View>
-                {i % 2 === 0 ? <Text style={s.balkLbl}>{d.label}</Text> : <Text style={s.balkLbl}> </Text>}
-              </View>
-            ))}
-          </View>
-          <Text style={s.grafiekVoet}>hoogste dag: {maxDag} punten</Text>
+        <View style={[s.knopRij, { flexDirection: breed ? 'row' : 'column' }]}>
+          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/attracties')}>
+            <Text style={s.knopVioletT}>🎡 Attracties & logins</Text>
+          </Pressable>
+          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/agenda')}>
+            <Text style={s.knopVioletT}>📅 Agenda beheren</Text>
+          </Pressable>
         </View>
-
-        <View style={s.blok}>
-          <Text style={s.blokTitel}>Per attractie</Text>
-          {attracties.length === 0
-            ? <Text style={s.sub}>Nog geen attracties.</Text>
-            : attracties.map((a) => (
-              <View key={a.id} style={s.attrRij}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.attrNaam}>{a.naam}</Text>
-                  <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[s.attrNum, { color: C.green }]}>{perAttr[a.id]?.saldo ?? 0}</Text>
-                  <Text style={s.attrSub}>open</Text>
-                </View>
-              </View>
-            ))}
-        </View>
-
-        <Pressable style={[s.knop, s.knopViolet]} onPress={() => router.push('/agenda')}>
-          <Text style={s.knopVioletT}>📅 Agenda beheren</Text>
-        </Pressable>
 
         <View style={[s.blok, s.credits]}>
           <View style={s.creditsTop}>
@@ -244,7 +232,8 @@ function Dashboard({ session }: { session: Session }) {
 
 const s = StyleSheet.create({
   scherm: { flex: 1, backgroundColor: C.bg },
-  wrap: { padding: 24, paddingTop: 60, maxWidth: 520, width: '100%', alignSelf: 'center', flexGrow: 1 },
+  wrap: { padding: 32, paddingTop: 48, maxWidth: 1120, width: '100%', alignSelf: 'center', flexGrow: 1 },
+  wrapSmal: { padding: 24, paddingTop: 60, maxWidth: 460, width: '100%', alignSelf: 'center', flexGrow: 1 },
   center: { justifyContent: 'center', alignItems: 'center' },
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
   logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -253,8 +242,8 @@ const s = StyleSheet.create({
   logoT: { color: C.ink, fontWeight: '800', fontSize: 19 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   uitlog: { color: C.muted, fontSize: 14, fontWeight: '600' },
-  titel: { color: C.ink, fontSize: 27, fontWeight: '900', marginTop: 18, letterSpacing: -0.4 },
-  sub: { color: C.muted, fontSize: 14.5, marginTop: 6 },
+  titel: { color: C.ink, fontSize: 30, fontWeight: '900', marginTop: 14, letterSpacing: -0.4 },
+  sub: { color: C.muted, fontSize: 15, marginTop: 6 },
   kaart: {
     backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 18,
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
@@ -264,35 +253,38 @@ const s = StyleSheet.create({
     backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line,
     color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13,
   },
-  knop: { borderRadius: 13, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  knop: { borderRadius: 13, paddingVertical: 15, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   knopViolet: { backgroundColor: C.violet },
   knopVioletT: { color: '#fff', fontWeight: '800', fontSize: 16 },
   knopUit: { opacity: 0.5 },
   foutBox: { backgroundColor: C.redbg, borderRadius: 11, padding: 12, marginTop: 16 },
   foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  kpiRij: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  kpiWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 20 },
   kpi: {
-    flex: 1, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16,
+    flexGrow: 1, flexBasis: 180, minWidth: 150,
+    backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 18,
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 1,
   },
-  kpiNum: { color: C.ink, fontSize: 28, fontWeight: '900' },
-  kpiLbl: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
+  kpiNum: { fontSize: 32, fontWeight: '900' },
+  kpiLbl: { color: C.muted, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  mainRow: { gap: 16, marginTop: 16, alignItems: 'stretch' },
   blok: {
-    backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 18, marginTop: 16,
+    backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 20,
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 1,
   },
-  blokTitel: { color: C.ink, fontSize: 15, fontWeight: '800' },
-  grafiek: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 130, marginTop: 16 },
+  blokTitel: { color: C.ink, fontSize: 16, fontWeight: '800' },
+  grafiek: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 200, marginTop: 18 },
   balkKolom: { flex: 1, alignItems: 'center' },
-  balkVak: { width: '100%', height: 104, justifyContent: 'flex-end' },
-  balk: { width: '68%', alignSelf: 'center', backgroundColor: C.violet, borderRadius: 4, minHeight: 2 },
-  balkLbl: { color: C.muted, fontSize: 9, marginTop: 4 },
-  grafiekVoet: { color: C.muted, fontSize: 12, marginTop: 8 },
+  balkVak: { width: '100%', height: 168, justifyContent: 'flex-end' },
+  balk: { width: '62%', alignSelf: 'center', backgroundColor: C.violet, borderRadius: 5, minHeight: 2 },
+  balkLbl: { color: C.muted, fontSize: 10, marginTop: 6 },
+  grafiekVoet: { color: C.muted, fontSize: 12.5, marginTop: 10 },
   attrRij: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.line },
   attrNaam: { color: C.ink, fontSize: 15.5, fontWeight: '700' },
   attrSub: { color: C.muted, fontSize: 12.5, marginTop: 2 },
   attrNum: { fontSize: 20, fontWeight: '900' },
-  credits: { backgroundColor: 'rgba(139,92,246,0.06)', borderColor: 'rgba(139,92,246,0.2)' },
+  knopRij: { gap: 12, marginTop: 16 },
+  credits: { backgroundColor: 'rgba(139,92,246,0.06)', borderColor: 'rgba(139,92,246,0.2)', marginTop: 16 },
   creditsTop: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 4 },
   binnenkort: {
     color: C.violet, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5,

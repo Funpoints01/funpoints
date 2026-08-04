@@ -15,3 +15,18 @@ const auth =
     : { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth })
+
+// Maakt een nieuwe login (auth-user) aan zonder de huidige sessie te verstoren.
+// Gebruikt een tijdelijke client met eigen opslag; geeft de nieuwe user-id terug.
+export async function maakLogin(email: string, wachtwoord: string): Promise<string> {
+  const tijdelijk = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false, autoRefreshToken: false,
+      detectSessionInUrl: false, storageKey: 'fp-login-tmp',
+    },
+  })
+  const { data, error } = await tijdelijk.auth.signUp({ email: email.trim(), password: wachtwoord })
+  if (error) throw error
+  if (!data.user) throw new Error('GEEN_USER')
+  return data.user.id
+}
