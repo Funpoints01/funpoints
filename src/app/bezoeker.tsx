@@ -8,6 +8,7 @@ import QRCode from 'react-native-qrcode-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -43,6 +44,8 @@ function Login() {
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
+  const insets = useSafeAreaInsets()
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   async function login() {
     setFout(''); setBezig(true)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: ww })
@@ -51,7 +54,7 @@ function Login() {
   }
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={wrapC} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/')} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
         <Logo />
         <Text style={s.titel}>Bezoeker</Text>
@@ -124,6 +127,7 @@ function Home({ session }: { session: Session }) {
   const [push, setPush] = useState<PushStatus>('niet')
   const [pushBezig, setPushBezig] = useState(false)
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('home')
+  const insets = useSafeAreaInsets()
   const [bezId, setBezId] = useState<string | null>(null)
   const [fNaam, setFNaam] = useState('')
   const [fPostcode, setFPostcode] = useState('')
@@ -246,11 +250,12 @@ function Home({ session }: { session: Session }) {
     { icon: '🎡', titel: 'Avonturier', desc: 'Probeer een lunapark', nu: stats.lunapark ? 1 : 0, doel: 1, kleur: C.violet },
   ]
   const voornaam = naam ? naam.split(' ')[0] : ''
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
 
   return (
     <View style={s.scherm}>
       {tab === 'home' ? (
-      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <View style={s.topbar}>
           <Logo />
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>
@@ -335,7 +340,7 @@ function Home({ session }: { session: Session }) {
       ) : null}
 
       {tab === 'kermissen' ? (
-      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <Text style={s.paginaTitel}>🎡 Kermissen</Text>
         {kermissen.length === 0
           ? <View style={s.leeg}><Text style={s.sub}>Nog geen kermissen gepland.</Text></View>
@@ -358,7 +363,7 @@ function Home({ session }: { session: Session }) {
       ) : null}
 
       {tab === 'qr' ? (
-      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <Text style={s.paginaTitel}>🎟️ Mijn QR</Text>
         <View style={s.qrKaart}>
           {code
@@ -374,7 +379,7 @@ function Home({ session }: { session: Session }) {
       ) : null}
 
       {tab === 'saldo' ? (
-      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <Text style={s.paginaTitel}>⭐ Mijn saldo's</Text>
         {kramen.some((k) => k.saldo !== 0) ? (
           <>
@@ -407,7 +412,7 @@ function Home({ session }: { session: Session }) {
       ) : null}
 
       {tab === 'settings' ? (
-      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <Text style={s.paginaTitel}>⚙️ Instellingen</Text>
 
         <Text style={s.sectie}>Profiel</Text>
@@ -452,7 +457,11 @@ function Home({ session }: { session: Session }) {
               </Pressable>
             </View>
           ) : (
-            <Text style={s.sub}>Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).</Text>
+            <Text style={s.sub}>
+              {Platform.OS === 'web'
+                ? 'Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).'
+                : 'Pushmeldingen komen binnenkort in de app.'}
+            </Text>
           )}
         </View>
 
@@ -486,7 +495,7 @@ function Home({ session }: { session: Session }) {
       </ScrollView>
       ) : null}
 
-      <View style={s.tabBar}>
+      <View style={[s.tabBar, { paddingBottom: Platform.OS === 'web' ? 24 : Math.max(insets.bottom, 12) }]}>
         {TABS.map((t) => t.key === 'qr' ? (
           <Pressable key={t.key} style={s.tabMidWrap} onPress={() => setTab('qr')}>
             <View style={[s.tabMid, tab === 'qr' && s.tabMidAan]}>

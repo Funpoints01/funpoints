@@ -4,6 +4,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
 
 const C = {
@@ -32,6 +33,8 @@ export default function Registreer() {
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
+  const insets = useSafeAreaInsets()
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 60 : insets.top + 14 }]
 
   async function registreer() {
     setFout('')
@@ -75,7 +78,7 @@ export default function Registreer() {
 
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={wrapC} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/')} hitSlop={12}>
           <Text style={s.terug}>‹ Terug</Text>
         </Pressable>
