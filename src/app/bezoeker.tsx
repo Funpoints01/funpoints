@@ -55,7 +55,9 @@ function Login() {
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={wrapC} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.push('/')} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
+        {Platform.OS === 'web' ? (
+          <Pressable onPress={() => router.push('/')} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
+        ) : null}
         <Logo />
         <Text style={s.titel}>Bezoeker</Text>
         <Text style={s.sub}>Log in om je kermis-belevenis te openen.</Text>
