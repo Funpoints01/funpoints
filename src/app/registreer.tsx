@@ -86,7 +86,7 @@ export default function Registreer() {
         <Text style={s.sub}>
           {code
             ? 'Je spaarkaart wordt meteen aan je account gekoppeld — je punten gaan mee.'
-            : 'Maak je Funpoints-account aan om je punten te bewaren.'}
+            : 'Maak je gratis Funpoints-account aan en spaar punten bij elke aangesloten kraam.'}
         </Text>
 
         <View style={s.kaart}>

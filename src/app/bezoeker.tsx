@@ -80,12 +80,10 @@ function Login() {
           </Pressable>
         </View>
 
-        <View style={s.infoBox}>
-          <Text style={s.infoT}>
-            Nog geen account? Scan de code op de <Text style={{ fontWeight: '800' }}>achterkant</Text> van je
-            Funpoints-kaartje om je te registreren.
-          </Text>
-        </View>
+        <Pressable onPress={() => router.push('/registreer')} style={[s.knop, s.knopWit]}>
+          <Text style={s.knopWitT}>Account aanmaken</Text>
+        </Pressable>
+        <Text style={s.hint}>Heb je een Funpoints-kaartje? Scan de achterkant bij het registreren om je punten mee te nemen.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -99,6 +97,7 @@ function Account({ session }: { session: Session }) {
   const [code, setCode] = useState<string | null>(null)
   const [kramen, setKramen] = useState<Kraam[]>([])
   const [laden, setLaden] = useState(true)
+  const [isBez, setIsBez] = useState<boolean | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -107,6 +106,7 @@ function Account({ session }: { session: Session }) {
         .select('naam, code').eq('auth_user_id', session.user.id).maybeSingle()
       setNaam(bez?.naam ?? '')
       setCode(bez?.code ?? null)
+      setIsBez(!!bez)
 
       const { data: att } = await supabase.from('attractie_publiek').select('id, naam, soort')
       const { data: sal } = await supabase.from('saldo').select('attractie_id, saldo')
@@ -137,6 +137,8 @@ function Account({ session }: { session: Session }) {
 
         {laden
           ? <ActivityIndicator color={C.coral} size="large" style={{ marginTop: 40 }} />
+          : isBez === false
+            ? <View style={s.infoBox}><Text style={s.infoT}>Deze login is geen bezoeker-account. Log hierboven uit en registreer je via de achterkant van een kaartje, of log in met je bezoeker-account.</Text></View>
           : kramen.length === 0
             ? <View style={s.infoBox}><Text style={s.infoT}>Er zijn nog geen aangesloten kramen.</Text></View>
             : (
@@ -202,6 +204,9 @@ const s = StyleSheet.create({
   knop: { borderRadius: 13, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   knopCoral: { backgroundColor: C.coral },
   knopCoralT: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  knopWit: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: C.coral, marginTop: 16 },
+  knopWitT: { color: C.coral, fontWeight: '800', fontSize: 16 },
+  hint: { color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 14, lineHeight: 19 },
   knopUit: { opacity: 0.5 },
   foutBox: { backgroundColor: C.redbg, borderRadius: 11, padding: 12, marginTop: 16 },
   foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
