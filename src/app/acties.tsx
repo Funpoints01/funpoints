@@ -58,8 +58,10 @@ export default function Acties() {
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
   async function herlaad() {
+    const uid = session?.user?.id
+    if (!uid) return
     const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
-      supabase.from('uitbater').select('credits').eq('auth_user_id', session!.user.id).maybeSingle(),
+      supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
       supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot').order('van'),
     ])
