@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -108,8 +108,31 @@ const TABS = [
   { key: 'kermissen', icon: '🎡', label: 'Kermissen' },
   { key: 'qr', icon: '🎟️', label: 'QR' },
   { key: 'saldo', icon: '⭐', label: 'Saldo' },
-  { key: 'settings', icon: '⚙️', label: 'Settings' },
+  { key: 'settings', icon: '👤', label: 'Account' },
 ] as const
+
+function SupersterBanner({ actie, onPress }: { actie: any; onPress: () => void }) {
+  const x = useRef(new Animated.Value(-80)).current
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(x, { toValue: 480, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+        Animated.delay(1300),
+        Animated.timing(x, { toValue: -80, duration: 0, useNativeDriver: Platform.OS !== 'web' }),
+      ])
+    )
+    loop.start()
+    return () => loop.stop()
+  }, [])
+  return (
+    <Pressable onPress={onPress} style={s.superBanner}>
+      <Animated.View style={[s.superShine, { transform: [{ translateX: x }, { skewX: '-20deg' }] }]} />
+      <Text style={s.superKicker}>⭐ SUPERSTER-ACTIE</Text>
+      <Text style={s.superTitel}>{actie.titel}</Text>
+      <Text style={s.superKraam}>{actie.kraam}{actie.beschrijving ? ` · ${actie.beschrijving}` : ''}</Text>
+    </Pressable>
+  )
+}
 
 function Home({ session }: { session: Session }) {
   const router = useRouter()
@@ -196,7 +219,7 @@ function Home({ session }: { session: Session }) {
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
         supabase.from('kermis').select('id, naam, plaats, van, tot').gte('tot', todayISO).order('van'),
         supabase.from('kermis_attractie').select('kermis_id'),
-        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
+        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster').eq('actief', true).gte('tot', todayISO),
       ])
 
       const saldoMap = new Map<string, number>()
@@ -253,6 +276,7 @@ function Home({ session }: { session: Session }) {
   ]
   const voornaam = naam ? naam.split(' ')[0] : ''
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
+  const superAct = acties.find((a: any) => a.superster)
 
   return (
     <View style={s.scherm}>
@@ -260,9 +284,6 @@ function Home({ session }: { session: Session }) {
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
         <View style={s.topbar}>
           <Logo />
-          <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>
-            <Text style={s.uitlog}>Uitloggen</Text>
-          </Pressable>
         </View>
 
         <View style={s.hero}>
@@ -288,6 +309,13 @@ function Home({ session }: { session: Session }) {
             <Text style={[s.pushBalkT, { color: C.green }]}>🔔 Meldingen staan aan</Text>
             <Text style={[s.pushBalkKnop, { color: C.muted }]}>{pushBezig ? '…' : 'Uitzetten'}</Text>
           </Pressable>
+        ) : null}
+
+        {superAct ? (
+          <SupersterBanner
+            actie={superAct}
+            onPress={() => (superAct.eenmalig ? toonVoucher(superAct) : router.push(`/kraam/${superAct.attractie_id}`))}
+          />
         ) : null}
 
         {acties.length > 0 ? (
@@ -388,7 +416,7 @@ function Home({ session }: { session: Session }) {
             <Text style={s.subKop}>Je saldo per kraam</Text>
             <View style={{ gap: 10 }}>
               {kramen.filter((k) => k.saldo !== 0).map((k) => (
-                <View key={k.id} style={s.kraart}>
+                <Pressable key={k.id} style={s.kraart} onPress={() => router.push(`/kraam/${k.id}`)}>
                   <View style={s.kraartRij}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.kraartNaam}>{k.naam}</Text>
@@ -399,10 +427,10 @@ function Home({ session }: { session: Session }) {
                       <Text style={s.saldoLbl}>punten</Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => router.push(`/kraam/${k.id}`)} style={s.detailLink}>
-                    <Text style={s.detailLinkT}>📍 Waar staat dit kraam? ›</Text>
-                  </Pressable>
-                </View>
+                  <View style={s.detailLink}>
+                    <Text style={s.detailLinkT}>🎁 Bekijk je prijs-voortgang ›</Text>
+                  </View>
+                </Pressable>
               ))}
             </View>
           </>
@@ -415,7 +443,7 @@ function Home({ session }: { session: Session }) {
 
       {tab === 'settings' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>⚙️ Instellingen</Text>
+        <Text style={s.paginaTitel}>👤 Account</Text>
 
         <Text style={s.sectie}>Profiel</Text>
         <View style={s.kaart}>
@@ -676,6 +704,14 @@ const s = StyleSheet.create({
   actieKraam: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
   actieDesc: { color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 18 },
   voucherTag: { color: C.green, fontSize: 12.5, fontWeight: '800', marginTop: 6 },
+  superBanner: {
+    backgroundColor: C.amber, borderRadius: 18, padding: 18, marginTop: 16, overflow: 'hidden',
+    shadowColor: C.amber, shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
+  },
+  superShine: { position: 'absolute', top: -20, bottom: -20, width: 55, backgroundColor: 'rgba(255,255,255,0.30)' },
+  superKicker: { color: '#fff', fontSize: 11.5, fontWeight: '900', letterSpacing: 1.2, opacity: 0.95 },
+  superTitel: { color: '#fff', fontSize: 20, fontWeight: '900', marginTop: 5, letterSpacing: -0.3 },
+  superKraam: { color: 'rgba(255,255,255,0.92)', fontSize: 13.5, fontWeight: '600', marginTop: 3 },
   pushBalk: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14,
     backgroundColor: 'rgba(251,113,133,0.10)', borderWidth: 1, borderColor: 'rgba(251,113,133,0.30)',

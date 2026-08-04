@@ -14,7 +14,7 @@ const C = {
 }
 const SOORTEN = ['lunapark', 'schietkraam', 'eendjes', 'ander'] as const
 
-type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null }
+type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null; hoofdprijs_naam: string | null; hoofdprijs_punten: number | null }
 
 export default function Attracties() {
   const router = useRouter()
@@ -35,12 +35,27 @@ export default function Attracties() {
   const [lFout, setLFout] = useState('')
   const [bevestigDel, setBevestigDel] = useState<string | null>(null)
 
+  const [prijsVoor, setPrijsVoor] = useState<string | null>(null)
+  const [pNaam, setPNaam] = useState('')
+  const [pPunten, setPPunten] = useState('')
+  const [pBezig, setPBezig] = useState(false)
+
+  async function bewaarPrijs(attractieId: string) {
+    setPBezig(true)
+    const n = pPunten.trim() ? parseInt(pPunten, 10) : null
+    const { error } = await supabase.from('attractie')
+      .update({ hoofdprijs_naam: pNaam.trim() || null, hoofdprijs_punten: n && n > 0 ? n : null })
+      .eq('id', attractieId)
+    setPBezig(false)
+    if (!error) { setPrijsVoor(null); herlaad() }
+  }
+
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
   async function herlaad() {
     const { data: u } = await supabase.from('uitbater').select('id').eq('auth_user_id', session!.user.id).maybeSingle()
     setUitbaterId(u?.id ?? null)
-    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id').order('naam')
+    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten').order('naam')
     setAttracties((att ?? []) as Attr[])
     setLaden(false)
   }
@@ -134,6 +149,37 @@ export default function Attracties() {
                   : <Text style={s.badgeGeen}>geen login</Text>}
               </View>
 
+              {prijsVoor === a.id ? (
+                <View style={s.loginVak}>
+                  <Text style={s.blokTitel}>🎁 Hoofdprijs</Text>
+                  <Text style={[s.label, { marginTop: 12 }]}>Naam van de prijs</Text>
+                  <TextInput style={s.input} value={pNaam} onChangeText={setPNaam}
+                    placeholder="bv. Grote knuffelbeer" placeholderTextColor={C.muted} />
+                  <Text style={[s.label, { marginTop: 12 }]}>Punten voor de hoofdprijs</Text>
+                  <TextInput style={s.input} value={pPunten} onChangeText={setPPunten}
+                    keyboardType="number-pad" placeholder="bv. 500" placeholderTextColor={C.muted} />
+                  <View style={s.rij}>
+                    <Pressable onPress={() => bewaarPrijs(a.id)} disabled={pBezig} style={[s.knop, s.knopViolet, s.knopHalf, pBezig && s.knopUit]}>
+                      {pBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Opslaan</Text>}
+                    </Pressable>
+                    <Pressable onPress={() => setPrijsVoor(null)} style={[s.knop, s.knopWit, s.knopHalf]}>
+                      <Text style={s.knopWitT}>Annuleren</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={s.tip}>Bezoekers zien hun voortgang naar deze prijs op de kraampagina.</Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => { setPrijsVoor(a.id); setPNaam(a.hoofdprijs_naam ?? ''); setPPunten(a.hoofdprijs_punten ? String(a.hoofdprijs_punten) : '') }}
+                  style={s.prijsKnop}>
+                  <Text style={s.prijsKnopT}>
+                    🎁 {a.hoofdprijs_naam && a.hoofdprijs_punten
+                      ? `${a.hoofdprijs_naam} · ${a.hoofdprijs_punten} ptn — wijzigen`
+                      : 'Hoofdprijs instellen'}
+                  </Text>
+                </Pressable>
+              )}
+
               {loginVoor === a.id ? (
                 <View style={s.loginVak}>
                   <Text style={s.label}>E-mail voor de foorkramer</Text>
@@ -225,6 +271,8 @@ const s = StyleSheet.create({
   badgeOk: { color: C.green, fontSize: 12.5, fontWeight: '700' },
   badgeGeen: { color: C.muted, fontSize: 12.5, fontWeight: '700' },
   loginVak: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.line },
+  prijsKnop: { marginTop: 12, backgroundColor: 'rgba(139,92,246,0.10)', borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  prijsKnopT: { color: C.violet, fontWeight: '800', fontSize: 13.5 },
   tip: { color: C.muted, fontSize: 12, marginTop: 10 },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 20, opacity: 0.8 },
 })

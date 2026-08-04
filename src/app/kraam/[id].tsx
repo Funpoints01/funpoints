@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
+import Svg, { Path } from 'react-native-svg'
 import { supabase } from '../../lib/supabase'
 
 const C = {
@@ -13,6 +14,33 @@ const EMOJI: Record<string, string> = { lunapark: '🎡', schietkraam: '🎯', e
 function kort(iso: string): string { const [, m, d] = iso.split('-'); return `${d}/${m}` }
 
 type Kermis = { id: string; naam: string; plaats: string; van: string; tot: string }
+
+function polar(cx: number, cy: number, r: number, deg: number) {
+  const rad = (deg * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) }
+}
+function boog(cx: number, cy: number, r: number, p: number) {
+  const s0 = polar(cx, cy, r, 180)
+  const s1 = polar(cx, cy, r, 180 - Math.max(0.0001, Math.min(1, p)) * 180)
+  return `M ${s0.x.toFixed(1)} ${s0.y.toFixed(1)} A ${r} ${r} 0 0 0 ${s1.x.toFixed(1)} ${s1.y.toFixed(1)}`
+}
+
+function Meter({ saldo, doel }: { saldo: number; doel: number }) {
+  const p = doel > 0 ? Math.max(0, Math.min(1, saldo / doel)) : 0
+  const cx = 110, cy = 112, r = 90, sw = 16
+  return (
+    <View style={{ width: 220, height: 130, alignItems: 'center', justifyContent: 'flex-end' }}>
+      <Svg width={220} height={130} style={{ position: 'absolute', top: 0 }}>
+        <Path d={boog(cx, cy, r, 1)} stroke="#EDE9F5" strokeWidth={sw} strokeLinecap="round" fill="none" />
+        {p > 0 ? <Path d={boog(cx, cy, r, p)} stroke="#10B981" strokeWidth={sw} strokeLinecap="round" fill="none" /> : null}
+      </Svg>
+      <View style={{ alignItems: 'center', paddingBottom: 4 }}>
+        <Text style={s.meterPct}>{Math.round(p * 100)}%</Text>
+        <Text style={s.meterSub}>{saldo} / {doel} punten</Text>
+      </View>
+    </View>
+  )
+}
 
 export default function KraamDetail() {
   const router = useRouter()
@@ -28,7 +56,7 @@ export default function KraamDetail() {
 
   useEffect(() => {
     (async () => {
-      const { data: a } = await supabase.from('attractie_publiek').select('id, naam, soort').eq('id', id).maybeSingle()
+      const { data: a } = await supabase.from('attractie_publiek').select('id, naam, soort, hoofdprijs_naam, hoofdprijs_punten').eq('id', id).maybeSingle()
       setAttr(a)
 
       const { data: ka } = await supabase.from('kermis_attractie').select('kermis_id').eq('attractie_id', id)
@@ -85,6 +113,24 @@ export default function KraamDetail() {
           </View>
         ) : null}
 
+        {code !== null ? (
+          attr.hoofdprijs_naam && attr.hoofdprijs_punten ? (
+            <View style={s.prijsKaart}>
+              <Text style={s.prijsKop}>🎁 Op weg naar je hoofdprijs</Text>
+              <Meter saldo={saldo ?? 0} doel={attr.hoofdprijs_punten} />
+              <Text style={s.prijsNaam}>{attr.hoofdprijs_naam}</Text>
+              {(saldo ?? 0) >= attr.hoofdprijs_punten
+                ? <Text style={s.prijsKlaar}>🎉 Je hebt genoeg punten — haal je prijs op!</Text>
+                : <Text style={s.prijsRest}>Nog {attr.hoofdprijs_punten - (saldo ?? 0)} punten te gaan</Text>}
+            </View>
+          ) : (
+            <View style={s.prijsKaart}>
+              <Text style={s.prijsKop}>🎁 Hoofdprijs</Text>
+              <Text style={s.prijsPlaceholder}>Dit kraam heeft nog geen hoofdprijs ingesteld. Kom later terug!</Text>
+            </View>
+          )
+        ) : null}
+
         {toonQr && code ? (
           <View style={s.qrVak}>
             <View style={s.qrWit}><QRCode value={`FP-B:${code}`} size={180} backgroundColor="#FFFFFF" color="#241B3A" /></View>
@@ -134,6 +180,14 @@ const s = StyleSheet.create({
   saldoPt: { color: C.muted, fontSize: 14, fontWeight: '700' },
   qrKnop: { backgroundColor: C.coral, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
   qrKnopT: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  prijsKaart: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 12, alignItems: 'center' },
+  prijsKop: { color: C.ink, fontSize: 15, fontWeight: '900', marginBottom: 6 },
+  meterPct: { color: C.green, fontSize: 30, fontWeight: '900' },
+  meterSub: { color: C.muted, fontSize: 12.5, fontWeight: '700', marginTop: 1 },
+  prijsNaam: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  prijsRest: { color: C.muted, fontSize: 13.5, fontWeight: '600', marginTop: 6 },
+  prijsKlaar: { color: C.green, fontSize: 14, fontWeight: '800', marginTop: 6, textAlign: 'center' },
+  prijsPlaceholder: { color: C.muted, fontSize: 14, textAlign: 'center', lineHeight: 20, marginTop: 4 },
   qrVak: { alignItems: 'center', backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 12 },
   qrWit: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line },
   qrHint: { color: C.muted, fontSize: 12.5, marginTop: 12, textAlign: 'center' },

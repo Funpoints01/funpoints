@@ -76,7 +76,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster: boolean }
 
 export default function Acties() {
   const router = useRouter()
@@ -90,6 +90,7 @@ export default function Acties() {
   const [titel, setTitel] = useState('')
   const [beschrijving, setBeschrijving] = useState('')
   const [eenmalig, setEenmalig] = useState(false)
+  const [superster, setSuperster] = useState(false)
   const [soort, setSoort] = useState('promo')
   const [pct, setPct] = useState('')
   const [van, setVan] = useState('')
@@ -159,7 +160,7 @@ export default function Acties() {
     const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
       supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
-      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig').order('van'),
+      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster').order('van'),
     ])
     setCredits(u?.credits ?? 0)
     const lijst = (att ?? []) as Attr[]
@@ -182,11 +183,11 @@ export default function Acties() {
     setBezig(true)
     const { error } = await supabase.from('actie').insert({
       attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
-      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig,
+      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig, superster,
     })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
-    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
+    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false); setSuperster(false)
     herlaad()
   }
 
@@ -286,6 +287,16 @@ export default function Acties() {
               ) : null}
             </>
           )}
+          <Pressable onPress={() => setSuperster(!superster)} style={[s.superRij, superster && s.superRijAan]}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.superT}>⭐ Superster-actie</Text>
+              <Text style={s.superSub}>Springt bovenaan in een opvallende, bewegende banner bij de bezoeker.</Text>
+            </View>
+            <View style={[s.switchTr, superster && s.switchTrAan]}>
+              <View style={[s.switchDot, superster && s.switchDotAan]} />
+            </View>
+          </Pressable>
+
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
@@ -311,6 +322,7 @@ export default function Acties() {
                 <View style={{ flex: 1 }}>
                   <View style={s.actieTop}>
                     <Text style={s.actieTitel}>{a.titel}</Text>
+                    {a.superster ? <Text style={s.superBadge}>⭐ superster</Text> : null}
                     {a.eenmalig ? <Text style={s.voucherBadge}>🎟️ voucher</Text> : null}
                     {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ tot {boostTot(a.boost_tot!)}</Text> : null}
                   </View>
@@ -449,6 +461,15 @@ const s = StyleSheet.create({
   actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
   boostBadge: { color: C.amber, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   voucherBadge: { color: C.green, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(16,185,129,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  superBadge: { color: '#B45309', fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.18)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  superRij: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, backgroundColor: C.veld, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14 },
+  superRijAan: { backgroundColor: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.35)' },
+  superT: { color: C.ink, fontSize: 14.5, fontWeight: '800' },
+  superSub: { color: C.muted, fontSize: 12.5, marginTop: 3, lineHeight: 17 },
+  switchTr: { width: 46, height: 28, borderRadius: 999, backgroundColor: '#d9d4e4', padding: 3, justifyContent: 'center' },
+  switchTrAan: { backgroundColor: C.amber },
+  switchDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
+  switchDotAan: { alignSelf: 'flex-end' },
   voucherHint: { backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 12, padding: 14, marginTop: 12 },
   voucherHintT: { color: '#0E7C5A', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   actieSub: { color: C.muted, fontSize: 12.5, marginTop: 3 },
