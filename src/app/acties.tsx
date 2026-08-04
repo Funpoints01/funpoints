@@ -30,6 +30,50 @@ function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); retu
 function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
+// --- Regio-targeting (interim: provincie-niveau) ---
+const PROV: Record<string, string> = {
+  ANT: 'Antwerpen', OVL: 'Oost-Vlaanderen', WVL: 'West-Vlaanderen', VBR: 'Vlaams-Brabant',
+  LIM: 'Limburg', BRU: 'Brussel', WBR: 'Waals-Brabant', HEN: 'Henegouwen',
+  NAM: 'Namen', LIE: 'Luik', LUX: 'Luxemburg',
+}
+const BUUR: Record<string, string[]> = {
+  ANT: ['OVL', 'VBR', 'LIM'], OVL: ['WVL', 'ANT', 'VBR', 'HEN'], WVL: ['OVL', 'HEN'],
+  VBR: ['ANT', 'OVL', 'BRU', 'WBR', 'LIE', 'LIM'], LIM: ['ANT', 'VBR', 'LIE'],
+  BRU: ['VBR', 'WBR'], WBR: ['BRU', 'VBR', 'HEN', 'NAM', 'LIE'],
+  HEN: ['WVL', 'OVL', 'WBR', 'NAM'], NAM: ['HEN', 'WBR', 'LIE', 'LUX'],
+  LIE: ['LIM', 'VBR', 'WBR', 'NAM', 'LUX'], LUX: ['NAM', 'LIE'],
+}
+const GEWEST_VL = ['ANT', 'OVL', 'WVL', 'VBR', 'LIM']
+const GEWEST_WA = ['WBR', 'HEN', 'NAM', 'LIE', 'LUX']
+const ALLE_PROV = Object.keys(PROV)
+const NIVEAUS = ['Eigen provincie', '+ Buurprovincies', 'Heel het gewest', 'Heel België']
+function provVan(pc: string): string | null {
+  const n = parseInt((pc.match(/\d+/g) || []).join(''), 10)
+  if (!n) return null
+  if (n <= 1299) return 'BRU'
+  if (n <= 1499) return 'WBR'
+  if (n <= 1999) return 'VBR'
+  if (n <= 2999) return 'ANT'
+  if (n <= 3499) return 'VBR'
+  if (n <= 3999) return 'LIM'
+  if (n <= 4999) return 'LIE'
+  if (n <= 5999) return 'NAM'
+  if (n <= 6599) return 'HEN'
+  if (n <= 6999) return 'LUX'
+  if (n <= 7999) return 'HEN'
+  if (n <= 8999) return 'WVL'
+  if (n <= 9999) return 'OVL'
+  return null
+}
+function provinciesVoor(pc: string, niveau: number): string[] | null {
+  const p = provVan(pc)
+  if (!p) return null
+  if (niveau <= 0) return [p]
+  if (niveau === 1) return [p, ...(BUUR[p] || [])]
+  if (niveau === 2) return GEWEST_VL.includes(p) ? GEWEST_VL : GEWEST_WA.includes(p) ? GEWEST_WA : ['BRU']
+  return ALLE_PROV
+}
+
 type Attr = { id: string; naam: string }
 type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean }
 
@@ -55,6 +99,52 @@ export default function Acties() {
   const [boostVoor, setBoostVoor] = useState<string | null>(null)
   const [boostBezig, setBoostBezig] = useState(false)
   const [boostFout, setBoostFout] = useState('')
+
+  const [campVoor, setCampVoor] = useState<string | null>(null)
+  const [campPc, setCampPc] = useState('')
+  const [campNiveau, setCampNiveau] = useState(0)
+  const [telling, setTelling] = useState<{ audience: number; bereikbaar: number } | null>(null)
+  const [telBezig, setTelBezig] = useState(false)
+  const [campBezig, setCampBezig] = useState(false)
+  const [campMelding, setCampMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+
+  async function telDoelgroep(pc: string, niveau: number) {
+    const provs = provinciesVoor(pc, niveau)
+    if (!provs) { setTelling(null); return }
+    setTelBezig(true)
+    const { data } = await supabase.rpc('tel_doelgroep', { p_provincies: provs })
+    setTelBezig(false)
+    setTelling(data ? { audience: (data as any).audience, bereikbaar: (data as any).bereikbaar } : null)
+  }
+
+  function openCampagne(actieId: string) {
+    setCampVoor(actieId); setCampMelding(null); setCampNiveau(0); setTelling(null)
+    telDoelgroep(campPc, 0)
+  }
+
+  async function verstuurCampagne(actieId: string) {
+    const provs = provinciesVoor(campPc, campNiveau)
+    if (!provs) { setCampMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
+    setCampBezig(true); setCampMelding(null)
+    const { data, error } = await supabase.rpc('verstuur_campagne', { p_actie_id: actieId, p_provincies: provs })
+    if (error) {
+      setCampBezig(false)
+      const m = error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.'
+        : error.message.includes('GEEN_ONTVANGERS') ? 'Nog geen bereikbare bezoekers (met meldingen aan) in dit bereik.'
+        : 'Versturen mislukt. Probeer opnieuw.'
+      setCampMelding({ ok: false, tekst: m }); return
+    }
+    const aantal = (data as any).aantal
+    setCredits((data as any).credits)
+    const { error: fnErr } = await supabase.functions.invoke('verstuur-push', { body: { campagne_id: (data as any).campagne_id } })
+    setCampBezig(false)
+    setCampMelding({
+      ok: !fnErr,
+      tekst: fnErr
+        ? `Campagne aangemaakt voor ${aantal} bezoeker(s) en credits afgeboekt, maar de verzending gaf een fout. Controleer de Edge Function 'verstuur-push'.`
+        : `📣 Verzonden naar ${aantal} bezoeker(s). ${aantal} credit(s) gebruikt.`,
+    })
+  }
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
@@ -252,6 +342,63 @@ export default function Acties() {
                   <Text style={s.boostKnopT}>⭐ {isGeboost(a.boost_tot) ? 'Uitlichting verlengen' : 'Boost deze actie'}</Text>
                 </Pressable>
               )}
+
+              {campVoor === a.id ? (
+                <View style={s.campVak}>
+                  <Text style={s.campKop}>📣 Pushmelding versturen</Text>
+                  <Text style={s.campUitleg}>Geef een postcode als middelpunt en vergroot de regio. Je betaalt 1 credit per bereikbare bezoeker.</Text>
+
+                  <Text style={[s.label, { marginTop: 12 }]}>Postcode (middelpunt)</Text>
+                  <TextInput style={s.input} value={campPc}
+                    onChangeText={(t) => { setCampPc(t); telDoelgroep(t, campNiveau) }}
+                    keyboardType="number-pad" maxLength={4}
+                    placeholder="bv. 8531" placeholderTextColor={C.muted} />
+                  {provVan(campPc) ? <Text style={s.campProv}>Regio rond {PROV[provVan(campPc)!]}</Text> : null}
+
+                  <Text style={[s.label, { marginTop: 14 }]}>Bereik</Text>
+                  <View style={s.balk}>
+                    {NIVEAUS.map((lbl, i) => (
+                      <Pressable key={i} onPress={() => { setCampNiveau(i); telDoelgroep(campPc, i) }}
+                        style={[s.balkSeg, i <= campNiveau && s.balkSegAan]}>
+                        <Text style={[s.balkSegT, i <= campNiveau && s.balkSegTAan]}>{lbl}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={s.tellerVak}>
+                    {telBezig
+                      ? <ActivityIndicator color={C.violet} />
+                      : telling
+                        ? <Text style={s.tellerT}>
+                            <Text style={s.tellerGetal}>{telling.audience}</Text> bezoeker(s) in dit bereik ·{' '}
+                            <Text style={s.tellerGetal}>{telling.bereikbaar}</Text> met meldingen aan
+                          </Text>
+                        : <Text style={s.tellerLeeg}>Geef een geldige postcode om je bereik te zien.</Text>}
+                  </View>
+
+                  {campMelding ? (
+                    <View style={[s.foutBox, campMelding.ok && s.okBox]}>
+                      <Text style={[s.foutT, campMelding.ok && s.okT]}>{campMelding.tekst}</Text>
+                    </View>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => verstuurCampagne(a.id)}
+                    disabled={campBezig || !telling || telling.bereikbaar === 0}
+                    style={[s.knop, s.knopGroen, { marginTop: 14 }, (campBezig || !telling || telling.bereikbaar === 0) && s.knopUit]}>
+                    {campBezig
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={s.knopGroenT}>📣 Verstuur{telling && telling.bereikbaar > 0 ? ` naar ${telling.bereikbaar} · ${telling.bereikbaar} credits` : ''}</Text>}
+                  </Pressable>
+                  <Pressable onPress={() => { setCampVoor(null); setCampMelding(null) }} style={{ marginTop: 10 }}>
+                    <Text style={s.annuleer}>Sluiten</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable onPress={() => openCampagne(a.id)} style={s.pushKnop}>
+                  <Text style={s.pushKnopT}>📣 Verstuur pushmelding</Text>
+                </Pressable>
+              )}
             </View>
           ))}
       </ScrollView>
@@ -313,4 +460,23 @@ const s = StyleSheet.create({
   boostOptieC: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: 11, marginTop: 1 },
   boostFout: { color: C.red, fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
   annuleer: { color: C.muted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  okBox: { backgroundColor: 'rgba(16,185,129,0.12)' },
+  okT: { color: '#0E9E70' },
+  knopGroen: { backgroundColor: C.green },
+  knopGroenT: { color: '#fff', fontWeight: '800', fontSize: 15.5 },
+  pushKnop: { marginTop: 10, backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  pushKnopT: { color: '#0E7C5A', fontWeight: '800', fontSize: 14 },
+  campVak: { marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.line },
+  campKop: { color: C.ink, fontSize: 15, fontWeight: '900' },
+  campUitleg: { color: C.muted, fontSize: 12.5, marginTop: 4, lineHeight: 18 },
+  campProv: { color: C.green, fontSize: 13, fontWeight: '700', marginTop: 6 },
+  balk: { flexDirection: 'row', gap: 4 },
+  balkSeg: { flex: 1, backgroundColor: C.veld, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  balkSegAan: { backgroundColor: C.violet },
+  balkSegT: { color: C.muted, fontSize: 10.5, fontWeight: '700', textAlign: 'center' },
+  balkSegTAan: { color: '#fff' },
+  tellerVak: { marginTop: 12, backgroundColor: C.veld, borderRadius: 12, padding: 14, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
+  tellerT: { color: C.ink, fontSize: 13.5, fontWeight: '600', textAlign: 'center', lineHeight: 19 },
+  tellerGetal: { color: C.violet, fontWeight: '900', fontSize: 15 },
+  tellerLeeg: { color: C.muted, fontSize: 13, textAlign: 'center' },
 })

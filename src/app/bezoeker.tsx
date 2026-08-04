@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -112,6 +113,17 @@ function Home({ session }: { session: Session }) {
   const [vCode, setVCode] = useState<string | null>(null)
   const [vGebruikt, setVGebruikt] = useState<string | null>(null)
   const [vLaden, setVLaden] = useState(false)
+  const [push, setPush] = useState<PushStatus>('niet')
+  const [pushBezig, setPushBezig] = useState(false)
+
+  useEffect(() => { pushStatus().then(setPush) }, [])
+
+  async function wisselPush() {
+    setPushBezig(true)
+    if (push === 'aan') { await zetPushUit(); setPush('uit') }
+    else { setPush(await zetPushAan()) }
+    setPushBezig(false)
+  }
 
   async function toonVoucher(a: any) {
     setVActie(a); setVCode(null); setVGebruikt(null); setVLaden(true)
@@ -213,6 +225,22 @@ function Home({ session }: { session: Session }) {
             <View style={s.heroStat}><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten gespaard</Text></View>
           </View>
         </View>
+
+        {pushOndersteund() && push !== 'aan' ? (
+          <Pressable style={s.pushBalk} onPress={wisselPush} disabled={pushBezig}>
+            <Text style={s.pushBalkT}>
+              {push === 'geblokkeerd'
+                ? '🔔 Meldingen staan uit in je browser — zet ze aan bij de site-instellingen'
+                : '🔔 Zet meldingen aan en mis geen enkele actie in je buurt'}
+            </Text>
+            {push !== 'geblokkeerd' ? <Text style={s.pushBalkKnop}>{pushBezig ? '…' : 'Aanzetten'}</Text> : null}
+          </Pressable>
+        ) : push === 'aan' ? (
+          <Pressable style={[s.pushBalk, s.pushBalkAan]} onPress={wisselPush} disabled={pushBezig}>
+            <Text style={[s.pushBalkT, { color: C.green }]}>🔔 Meldingen staan aan</Text>
+            <Text style={[s.pushBalkKnop, { color: C.muted }]}>{pushBezig ? '…' : 'Uitzetten'}</Text>
+          </Pressable>
+        ) : null}
 
         {acties.length > 0 ? (
           <>
@@ -452,6 +480,14 @@ const s = StyleSheet.create({
   actieKraam: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2 },
   actieDesc: { color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 18 },
   voucherTag: { color: C.green, fontSize: 12.5, fontWeight: '800', marginTop: 6 },
+  pushBalk: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14,
+    backgroundColor: 'rgba(251,113,133,0.10)', borderWidth: 1, borderColor: 'rgba(251,113,133,0.30)',
+    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16,
+  },
+  pushBalkAan: { backgroundColor: 'rgba(16,185,129,0.10)', borderColor: 'rgba(16,185,129,0.30)' },
+  pushBalkT: { color: C.coralD, fontSize: 13.5, fontWeight: '700', flex: 1, lineHeight: 18 },
+  pushBalkKnop: { color: C.coralD, fontSize: 13.5, fontWeight: '900' },
   voucherChip: { backgroundColor: 'rgba(16,185,129,0.14)', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
   voucherChipT: { color: C.green, fontWeight: '800', fontSize: 12.5 },
   vOverlay: {
