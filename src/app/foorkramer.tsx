@@ -12,12 +12,23 @@ const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
   muted: '#7A7290', green: '#10B981', greend: '#0E9E70', red: '#E11D48',
   redbg: 'rgba(225,29,72,0.10)', okbg: 'rgba(16,185,129,0.12)',
-  line: 'rgba(36,27,58,0.10)',
+  line: 'rgba(36,27,58,0.10)', violet: '#8B5CF6',
 }
+
+const isWeb = Platform.OS === 'web'
+const isStandalonePWA =
+  isWeb && typeof window !== 'undefined' &&
+  ((typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
+    (window.navigator as any)?.standalone === true)
+const isMobielWeb =
+  isWeb && typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+// Op de gsm in de browser (nog niet geïnstalleerd) → toon de PWA-gids na het inloggen.
+const toonPwaGids = isMobielWeb && !isStandalonePWA
 
 export default function FoorkramerScherm() {
   const [session, setSession] = useState<Session | null>(null)
   const [laden, setLaden] = useState(true)
+  const [gidsKlaar, setGidsKlaar] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -35,7 +46,67 @@ export default function FoorkramerScherm() {
       </View>
     )
   }
-  return session ? <Boeken session={session} /> : <Login />
+  if (!session) return <Login />
+  if (toonPwaGids && !gidsKlaar) return <PwaGids onVerder={() => setGidsKlaar(true)} />
+  return <Boeken session={session} />
+}
+
+function Stap({ n, t }: { n: string; t: string }) {
+  return (
+    <View style={s.stapRij}>
+      <View style={s.stapN}><Text style={s.stapNT}>{n}</Text></View>
+      <Text style={s.stapT}>{t}</Text>
+    </View>
+  )
+}
+
+function PwaGids({ onVerder }: { onVerder: () => void }) {
+  const [tel, setTel] = useState<'ios' | 'android' | null>(null)
+  return (
+    <View style={s.scherm}>
+      <ScrollView contentContainerStyle={s.wrap}>
+        <Logo />
+        <Text style={s.titel}>Zet Funpoints op je beginscherm</Text>
+        <Text style={s.sub}>Zo open je de scanner voortaan met één tik, zonder browser. Welke telefoon heb je?</Text>
+
+        <View style={s.telRij}>
+          <Pressable onPress={() => setTel('ios')} style={[s.telKnop, tel === 'ios' && s.telKnopAan]}>
+            <Text style={s.telE}>🍎</Text><Text style={[s.telT, tel === 'ios' && s.telTAan]}>iPhone</Text>
+          </Pressable>
+          <Pressable onPress={() => setTel('android')} style={[s.telKnop, tel === 'android' && s.telKnopAan]}>
+            <Text style={s.telE}>🤖</Text><Text style={[s.telT, tel === 'android' && s.telTAan]}>Android</Text>
+          </Pressable>
+        </View>
+
+        {tel === 'ios' ? (
+          <View style={s.kaart}>
+            <Text style={s.stapKop}>Op je iPhone — in Safari:</Text>
+            <Stap n="1" t="Tik onderaan op de deelknop (het vierkantje met een pijltje omhoog)." />
+            <Stap n="2" t="Scroll en kies “Zet op beginscherm”." />
+            <Stap n="3" t="Tik op “Voeg toe” rechtsboven." />
+            <Stap n="4" t="Open Funpoints voortaan vanaf je beginscherm en log in." />
+          </View>
+        ) : tel === 'android' ? (
+          <View style={s.kaart}>
+            <Text style={s.stapKop}>Op je Android — in Chrome:</Text>
+            <Stap n="1" t="Tik rechtsboven op het menu (drie puntjes)." />
+            <Stap n="2" t="Kies “App installeren” of “Toevoegen aan startscherm”." />
+            <Stap n="3" t="Bevestig met “Installeren”." />
+            <Stap n="4" t="Open Funpoints voortaan vanaf je beginscherm en log in." />
+          </View>
+        ) : null}
+
+        {tel ? (
+          <Pressable onPress={onVerder} style={[s.knop, s.knopGroen]}>
+            <Text style={s.knopGroenT}>Naar de scanner</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onVerder} style={s.gidsLinkWrap}>
+          <Text style={s.gidsLink}>Nu even verder in de browser →</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  )
 }
 
 function Logo() {
@@ -379,6 +450,22 @@ const s = StyleSheet.create({
   okBox: { backgroundColor: C.okbg },
   okT: { color: C.greend },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 26, opacity: 0.7 },
+  telRij: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  telKnop: {
+    flex: 1, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line, borderRadius: 16,
+    paddingVertical: 18, alignItems: 'center', gap: 6,
+  },
+  telKnopAan: { borderColor: C.green, backgroundColor: 'rgba(16,185,129,0.08)' },
+  telE: { fontSize: 30 },
+  telT: { color: C.ink, fontSize: 15, fontWeight: '800' },
+  telTAan: { color: C.greend },
+  stapKop: { color: C.ink, fontSize: 14.5, fontWeight: '800', marginBottom: 12 },
+  stapRij: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
+  stapN: { width: 26, height: 26, borderRadius: 8, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
+  stapNT: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  stapT: { flex: 1, color: C.ink, fontSize: 14.5, lineHeight: 21 },
+  gidsLinkWrap: { marginTop: 16, alignItems: 'center', paddingVertical: 6 },
+  gidsLink: { color: C.muted, fontSize: 14, fontWeight: '700' },
   klantNote: { color: C.green, fontSize: 13, fontWeight: '700', marginTop: 8 },
   saldoInfo: {
     backgroundColor: C.okbg, borderRadius: 12, padding: 14, marginTop: 14,
