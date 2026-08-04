@@ -9,13 +9,14 @@ import { supabase } from '../lib/supabase'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
-  muted: '#7A7290', violet: '#8B5CF6', amber: '#F59E0B', red: '#E11D48',
+  muted: '#7A7290', violet: '#8B5CF6', amber: '#F59E0B', green: '#10B981', red: '#E11D48',
   redbg: 'rgba(225,29,72,0.10)', line: 'rgba(36,27,58,0.10)',
 }
 const SOORTEN = [
   { key: 'promo', label: 'Korting / promo' },
   { key: 'bonus_punten', label: 'Extra punten' },
 ]
+const BOOSTS = [{ d: 3 }, { d: 7 }, { d: 14 }]   // 10 credits/dag
 function naarISO(sv: string): string | null {
   const d = sv.match(/\d+/g)
   if (!d || d.length < 3) return null
@@ -26,9 +27,8 @@ function naarISO(sv: string): string | null {
   return `${jaar}-${maand.padStart(2, '0')}-${dag.padStart(2, '0')}`
 }
 function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); return `${d}-${m}-${j}` }
-function isGeboost(boostTot: string | null): boolean {
-  return !!boostTot && new Date(boostTot).getTime() > Date.now()
-}
+function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
+function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 type Attr = { id: string; naam: string }
 type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null }
@@ -38,6 +38,7 @@ export default function Acties() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [acties, setActies] = useState<Actie[]>([])
+  const [credits, setCredits] = useState(0)
   const [laden, setLaden] = useState(true)
 
   const [attrId, setAttrId] = useState('')
@@ -50,13 +51,19 @@ export default function Acties() {
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
 
+  const [boostVoor, setBoostVoor] = useState<string | null>(null)
+  const [boostBezig, setBoostBezig] = useState(false)
+  const [boostFout, setBoostFout] = useState('')
+
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
   async function herlaad() {
-    const [{ data: att }, { data: act }] = await Promise.all([
+    const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
+      supabase.from('uitbater').select('credits').eq('auth_user_id', session!.user.id).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
       supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot').order('van'),
     ])
+    setCredits(u?.credits ?? 0)
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
     if (lijst.length && !attrId) setAttrId(lijst[0].id)
@@ -90,6 +97,19 @@ export default function Acties() {
     setActies((a) => a.filter((x) => x.id !== id))
   }
 
+  async function boost(actieId: string, dagen: number) {
+    setBoostFout(''); setBoostBezig(true)
+    const { data, error } = await supabase.rpc('boost_actie', { p_actie_id: actieId, p_dagen: dagen })
+    setBoostBezig(false)
+    if (error) {
+      setBoostFout(error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits.' : 'Boosten mislukt.')
+      return
+    }
+    setCredits(data as number)
+    setBoostVoor(null)
+    herlaad()
+  }
+
   if (session === undefined || laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.violet} size="large" /></View>
   if (session === null) return (
     <View style={[s.scherm, s.center, { padding: 28 }]}>
@@ -105,11 +125,18 @@ export default function Acties() {
       <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/uitbater')} hitSlop={12}><Text style={s.terug}>‹ Dashboard</Text></Pressable>
         <Text style={s.titel}>Acties</Text>
-        <Text style={s.sub}>Zet acties op voor je kramen — ze verschijnen bij de bezoekers.</Text>
+        <Text style={s.sub}>Zet acties op en boost ze om bovenaan bij de bezoekers te staan.</Text>
+
+        <View style={s.creditKaart}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.creditLbl}>Je credits</Text>
+            <Text style={s.creditNum}>{credits}</Text>
+          </View>
+          <View style={s.creditKoop}><Text style={s.creditKoopT}>Kopen · binnenkort</Text></View>
+        </View>
 
         <View style={s.kaart}>
           <Text style={s.blokTitel}>Nieuwe actie</Text>
-
           <Text style={[s.label, { marginTop: 14 }]}>Attractie</Text>
           <View style={s.chips}>
             {attracties.map((a) => (
@@ -118,15 +145,12 @@ export default function Acties() {
               </Pressable>
             ))}
           </View>
-
           <Text style={[s.label, { marginTop: 14 }]}>Titel</Text>
           <TextInput style={s.input} value={titel} onChangeText={setTitel}
             placeholder="bv. 10% extra punten dit weekend" placeholderTextColor={C.muted} />
-
           <Text style={[s.label, { marginTop: 14 }]}>Beschrijving (optioneel)</Text>
           <TextInput style={s.input} value={beschrijving} onChangeText={setBeschrijving}
             placeholder="korte uitleg" placeholderTextColor={C.muted} />
-
           <Text style={[s.label, { marginTop: 14 }]}>Soort</Text>
           <View style={s.chips}>
             {SOORTEN.map((so) => (
@@ -135,7 +159,6 @@ export default function Acties() {
               </Pressable>
             ))}
           </View>
-
           {soort === 'bonus_punten' ? (
             <>
               <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
@@ -143,7 +166,6 @@ export default function Acties() {
                 keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
             </>
           ) : null}
-
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
@@ -156,31 +178,54 @@ export default function Acties() {
                 keyboardType="numbers-and-punctuation" placeholder="DD-MM-JJJJ" placeholderTextColor={C.muted} />
             </View>
           </View>
-
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie toevoegen</Text>}
           </Pressable>
-          <Text style={s.tip}>Bovenaan bij de bezoekers komen? Straks kun je een actie "boosten" met credits.</Text>
         </View>
 
         <Text style={[s.blokTitel, { marginTop: 24, marginBottom: 4 }]}>Je acties</Text>
         {acties.length === 0
           ? <Text style={s.sub}>Nog geen acties.</Text>
           : acties.map((a) => (
-            <View key={a.id} style={s.actieRij}>
-              <View style={{ flex: 1 }}>
-                <View style={s.actieTop}>
-                  <Text style={s.actieTitel}>{a.titel}</Text>
-                  {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ uitgelicht</Text> : null}
+            <View key={a.id} style={s.actieKaart}>
+              <View style={s.actieRij}>
+                <View style={{ flex: 1 }}>
+                  <View style={s.actieTop}>
+                    <Text style={s.actieTitel}>{a.titel}</Text>
+                    {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ tot {boostTot(a.boost_tot!)}</Text> : null}
+                  </View>
+                  <Text style={s.actieSub}>
+                    {naamVan(a.attractie_id)}
+                    {a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
+                    {' · '}{toonDatum(a.van)} → {toonDatum(a.tot)}
+                  </Text>
                 </View>
-                <Text style={s.actieSub}>
-                  {naamVan(a.attractie_id)}
-                  {a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
-                  {' · '}{toonDatum(a.van)} → {toonDatum(a.tot)}
-                </Text>
+                <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Wis</Text></Pressable>
               </View>
-              <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Verwijderen</Text></Pressable>
+
+              {boostVoor === a.id ? (
+                <View style={s.boostVak}>
+                  <Text style={s.boostUitleg}>Kies hoelang je deze actie uitlicht (10 credits/dag):</Text>
+                  <View style={s.boostOpties}>
+                    {BOOSTS.map((b) => (
+                      <Pressable key={b.d} onPress={() => boost(a.id, b.d)} disabled={boostBezig}
+                        style={[s.boostOptie, boostBezig && s.knopUit]}>
+                        <Text style={s.boostOptieD}>{b.d} dagen</Text>
+                        <Text style={s.boostOptieC}>{b.d * 10} credits</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {boostFout ? <Text style={s.boostFout}>{boostFout}</Text> : null}
+                  <Pressable onPress={() => { setBoostVoor(null); setBoostFout('') }} style={{ marginTop: 10 }}>
+                    <Text style={s.annuleer}>Annuleren</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable onPress={() => { setBoostVoor(a.id); setBoostFout('') }} style={s.boostKnop}>
+                  <Text style={s.boostKnopT}>⭐ {isGeboost(a.boost_tot) ? 'Uitlichting verlengen' : 'Boost deze actie'}</Text>
+                </Pressable>
+              )}
             </View>
           ))}
       </ScrollView>
@@ -195,8 +240,16 @@ const s = StyleSheet.create({
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
   titel: { color: C.ink, fontSize: 27, fontWeight: '900', letterSpacing: -0.4 },
   sub: { color: C.muted, fontSize: 14.5, marginTop: 6 },
+  creditKaart: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 16,
+    backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)', borderRadius: 18, padding: 18,
+  },
+  creditLbl: { color: C.violet, fontSize: 13, fontWeight: '700' },
+  creditNum: { color: C.ink, fontSize: 30, fontWeight: '900', marginTop: 2 },
+  creditKoop: { backgroundColor: 'rgba(139,92,246,0.14)', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
+  creditKoopT: { color: C.violet, fontWeight: '700', fontSize: 12.5 },
   kaart: {
-    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 18,
+    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 16,
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   blokTitel: { color: C.ink, fontSize: 16, fontWeight: '800' },
@@ -212,13 +265,23 @@ const s = StyleSheet.create({
   knopViolet: { backgroundColor: C.violet },
   knopVioletT: { color: '#fff', fontWeight: '800', fontSize: 16 },
   knopUit: { opacity: 0.5 },
-  tip: { color: C.muted, fontSize: 12, marginTop: 10 },
   foutBox: { backgroundColor: C.redbg, borderRadius: 11, padding: 12, marginTop: 16 },
   foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  actieRij: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 16, marginTop: 10 },
+  actieKaart: { backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 16, marginTop: 10 },
+  actieRij: { flexDirection: 'row', alignItems: 'center' },
   actieTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   actieTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
   boostBadge: { color: C.amber, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   actieSub: { color: C.muted, fontSize: 12.5, marginTop: 3 },
-  verwijder: { color: C.red, fontSize: 13, fontWeight: '700' },
+  verwijder: { color: C.red, fontSize: 13, fontWeight: '700', marginLeft: 10 },
+  boostKnop: { marginTop: 12, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  boostKnopT: { color: '#B45309', fontWeight: '800', fontSize: 14 },
+  boostVak: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
+  boostUitleg: { color: C.muted, fontSize: 13, marginBottom: 10 },
+  boostOpties: { flexDirection: 'row', gap: 8 },
+  boostOptie: { flex: 1, backgroundColor: C.amber, borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  boostOptieD: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  boostOptieC: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: 11, marginTop: 1 },
+  boostFout: { color: C.red, fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
+  annuleer: { color: C.muted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
 })
