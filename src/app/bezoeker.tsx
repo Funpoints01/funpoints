@@ -100,9 +100,10 @@ function streakVan(dagen: Set<string>): number {
 
 const TABS = [
   { key: 'home', icon: '🏠', label: 'Home' },
-  { key: 'qr', icon: '🎟️', label: 'QR' },
   { key: 'kermissen', icon: '🎡', label: 'Kermissen' },
+  { key: 'qr', icon: '🎟️', label: 'QR' },
   { key: 'saldo', icon: '⭐', label: 'Saldo' },
+  { key: 'settings', icon: '⚙️', label: 'Instellingen' },
 ] as const
 
 function Home({ session }: { session: Session }) {
@@ -123,6 +124,26 @@ function Home({ session }: { session: Session }) {
   const [push, setPush] = useState<PushStatus>('niet')
   const [pushBezig, setPushBezig] = useState(false)
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('home')
+  const [bezId, setBezId] = useState<string | null>(null)
+  const [fNaam, setFNaam] = useState('')
+  const [fPostcode, setFPostcode] = useState('')
+  const [profielBezig, setProfielBezig] = useState(false)
+  const [profielMelding, setProfielMelding] = useState<string | null>(null)
+
+  async function bewaarProfiel() {
+    if (!bezId) return
+    if (fPostcode.trim() && !/^\d{4}$/.test(fPostcode.trim())) {
+      setProfielMelding('Geef een geldige postcode (4 cijfers).'); return
+    }
+    setProfielBezig(true); setProfielMelding(null)
+    const { error } = await supabase.from('bezoeker')
+      .update({ naam: fNaam.trim() || null, postcode: fPostcode.trim() || null })
+      .eq('id', bezId)
+    setProfielBezig(false)
+    if (error) { setProfielMelding('Opslaan mislukt. Probeer opnieuw.'); return }
+    setNaam(fNaam.trim())
+    setProfielMelding('Opgeslagen ✓')
+  }
 
   useEffect(() => { pushStatus().then(setPush) }, [])
 
@@ -147,9 +168,10 @@ function Home({ session }: { session: Session }) {
 
   useEffect(() => {
     (async () => {
-      const { data: bez } = await supabase.from('bezoeker').select('naam, code')
+      const { data: bez } = await supabase.from('bezoeker').select('id, naam, code, postcode')
         .eq('auth_user_id', session.user.id).maybeSingle()
       setNaam(bez?.naam ?? ''); setCode(bez?.code ?? null); setIsBez(!!bez)
+      setBezId(bez?.id ?? null); setFNaam(bez?.naam ?? ''); setFPostcode(bez?.postcode ?? '')
 
       const todayISO = new Date().toISOString().slice(0, 10)
       const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }] = await Promise.all([
@@ -374,8 +396,71 @@ function Home({ session }: { session: Session }) {
       </ScrollView>
       ) : null}
 
+      {tab === 'settings' ? (
+      <ScrollView style={s.blad} contentContainerStyle={s.wrap}>
+        <Text style={s.paginaTitel}>⚙️ Instellingen</Text>
+
+        <Text style={s.sectie}>Profiel</Text>
+        <View style={s.kaart}>
+          <Text style={s.label}>Naam</Text>
+          <TextInput style={s.input} value={fNaam} onChangeText={setFNaam}
+            placeholder="Je naam" placeholderTextColor={C.muted} />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
+          <TextInput style={s.input} value={fPostcode} onChangeText={setFPostcode}
+            keyboardType="number-pad" maxLength={4}
+            placeholder="bv. 8531" placeholderTextColor={C.muted} />
+          <Text style={s.veldHint}>Zo tonen we je kermissen en acties in je buurt.</Text>
+
+          <Text style={[s.label, { marginTop: 14 }]}>E-mail</Text>
+          <View style={s.leesveld}><Text style={s.leesveldT}>{session.user.email ?? '—'}</Text></View>
+
+          {profielMelding ? (
+            <View style={[s.foutBox, profielMelding.includes('✓') && s.okBox]}>
+              <Text style={[s.foutT, profielMelding.includes('✓') && s.okT]}>{profielMelding}</Text>
+            </View>
+          ) : null}
+
+          <Pressable onPress={bewaarProfiel} disabled={profielBezig} style={[s.knop, s.knopCoral, profielBezig && { opacity: 0.5 }]}>
+            {profielBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>Opslaan</Text>}
+          </Pressable>
+        </View>
+
+        <Text style={s.sectie}>Meldingen</Text>
+        <View style={s.kaart}>
+          {pushOndersteund() ? (
+            <View style={s.instelRij}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.instelLabel}>Pushmeldingen</Text>
+                <Text style={s.veldHint}>Een seintje bij nieuwe acties in je buurt.</Text>
+              </View>
+              <Pressable onPress={wisselPush} disabled={pushBezig}
+                style={[s.miniKnop, push === 'aan' && s.miniKnopAan]}>
+                <Text style={[s.miniKnopT, push === 'aan' && s.miniKnopTAan]}>
+                  {pushBezig ? '…' : push === 'aan' ? 'Aan' : push === 'geblokkeerd' ? 'Geblokkeerd' : 'Uit'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={s.sub}>Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).</Text>
+          )}
+        </View>
+
+        <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} style={[s.knop, s.knopWit, { marginTop: 22 }]}>
+          <Text style={s.knopWitT}>Uitloggen</Text>
+        </Pressable>
+      </ScrollView>
+      ) : null}
+
       <View style={s.tabBar}>
-        {TABS.map((t) => (
+        {TABS.map((t) => t.key === 'qr' ? (
+          <Pressable key={t.key} style={s.tabMidWrap} onPress={() => setTab('qr')}>
+            <View style={[s.tabMid, tab === 'qr' && s.tabMidAan]}>
+              <Text style={s.tabMidIcon}>🎟️</Text>
+            </View>
+            <Text style={[s.tabLabel, tab === 'qr' && s.tabLabelAan]}>QR</Text>
+          </Pressable>
+        ) : (
           <Pressable key={t.key} style={s.tabItem} onPress={() => setTab(t.key)}>
             <Text style={[s.tabIcon, tab === t.key && s.tabIconAan]}>{t.icon}</Text>
             <Text style={[s.tabLabel, tab === t.key && s.tabLabelAan]}>{t.label}</Text>
@@ -435,6 +520,26 @@ const s = StyleSheet.create({
   tabIconAan: { opacity: 1 },
   tabLabel: { color: C.muted, fontSize: 11, fontWeight: '700' },
   tabLabelAan: { color: C.coralD },
+  tabMidWrap: { flex: 1, alignItems: 'center', gap: 3 },
+  tabMid: {
+    width: 56, height: 56, borderRadius: 28, backgroundColor: C.coral,
+    alignItems: 'center', justifyContent: 'center', marginTop: -26,
+    borderWidth: 4, borderColor: C.card,
+    shadowColor: C.coral, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 6,
+  },
+  tabMidAan: { backgroundColor: C.coralD },
+  tabMidIcon: { fontSize: 26 },
+  veldHint: { color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 16 },
+  leesveld: { backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 13 },
+  leesveldT: { color: C.muted, fontSize: 15 },
+  okBox: { backgroundColor: 'rgba(16,185,129,0.12)' },
+  okT: { color: C.green },
+  instelRij: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  instelLabel: { color: C.ink, fontSize: 15, fontWeight: '700' },
+  miniKnop: { backgroundColor: C.veld, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 9, borderWidth: 1, borderColor: C.line },
+  miniKnopAan: { backgroundColor: C.green, borderColor: C.green },
+  miniKnopT: { color: C.muted, fontWeight: '800', fontSize: 13.5 },
+  miniKnopTAan: { color: '#fff' },
   center: { justifyContent: 'center', alignItems: 'center' },
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 22 },
   logo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
