@@ -14,22 +14,14 @@ const C = {
   redbg: 'rgba(225,29,72,0.10)', line: 'rgba(36,27,58,0.10)',
 }
 
-function naarISO(sv: string): string | null {
-  const d = sv.match(/\d+/g)
-  if (!d || d.length < 3) return null
-  const [dag, maand, jaar] = d
-  if (jaar.length !== 4) return null
-  const di = parseInt(dag, 10), mi = parseInt(maand, 10)
-  if (di < 1 || di > 31 || mi < 1 || mi > 12) return null
-  return `${jaar}-${maand.padStart(2, '0')}-${dag.padStart(2, '0')}`
-}
 function toonDatum(iso: string): string {
   const [j, m, d] = iso.split('-')
   return `${d}-${m}-${j}`
 }
 
 type Attr = { id: string; naam: string }
-type Loc = { id: string; attractie_id: string; naam: string; van: string; tot: string }
+// Eén rij per (kermis × attractie): de gedeelde lijst die ook bezoekers zien.
+type Loc = { kermisId: string; attractieId: string; naam: string; plaats: string | null; van: string; tot: string }
 
 export default function Agenda() {
   const router = useRouter()
@@ -40,6 +32,8 @@ export default function Agenda() {
 
   const [attrId, setAttrId] = useState<string>('')
   const [naam, setNaam] = useState('')
+  const [plaats, setPlaats] = useState('')
+  const [postcode, setPostcode] = useState('')
   const [van, setVan] = useState('')
   const [tot, setTot] = useState('')
   const [bezig, setBezig] = useState(false)
@@ -50,14 +44,29 @@ export default function Agenda() {
   }, [])
 
   async function herlaad() {
-    const [{ data: att }, { data: loc }] = await Promise.all([
-      supabase.from('attractie').select('id, naam'),
-      supabase.from('locatie').select('id, attractie_id, naam, van, tot').order('van'),
-    ])
+    const { data: att } = await supabase.from('attractie').select('id, naam')
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
     if (lijst.length && !attrId) setAttrId(lijst[0].id)
-    setLocaties((loc ?? []) as Loc[])
+
+    const ids = lijst.map((a) => a.id)
+    let rijen: Loc[] = []
+    if (ids.length) {
+      const { data: ka } = await supabase.from('kermis_attractie')
+        .select('kermis_id, attractie_id').in('attractie_id', ids)
+      const kermisIds = [...new Set((ka ?? []).map((r: any) => r.kermis_id))]
+      if (kermisIds.length) {
+        const { data: kerm } = await supabase.from('kermis')
+          .select('id, naam, plaats, van, tot').in('id', kermisIds)
+        const kMap = new Map<string, any>((kerm ?? []).map((k: any) => [k.id, k]))
+        rijen = (ka ?? []).flatMap((r: any) => {
+          const k = kMap.get(r.kermis_id)
+          if (!k) return []
+          return [{ kermisId: k.id, attractieId: r.attractie_id, naam: k.naam, plaats: k.plaats, van: k.van, tot: k.tot }]
+        }).sort((a, b) => String(a.van).localeCompare(String(b.van)))
+      }
+    }
+    setLocaties(rijen)
     setLaden(false)
   }
 
@@ -66,21 +75,28 @@ export default function Agenda() {
   async function toevoegen() {
     setFout('')
     if (!attrId) return setFout('Kies eerst een attractie.')
-    if (!naam.trim()) return setFout('Geef een naam of plaats.')
+    if (!naam.trim()) return setFout('Geef een naam.')
     if (!van || !tot) return setFout('Kies een begin- en einddatum.')
-    const vi = van, ti = tot
-    if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
+    if (postcode.trim() && !/^\d{4}$/.test(postcode.trim())) return setFout('Geef een geldige postcode (4 cijfers).')
+    if (tot < van) return setFout('De einddatum ligt vóór de startdatum.')
     setBezig(true)
-    const { error } = await supabase.from('locatie').insert({ attractie_id: attrId, naam: naam.trim(), van: vi, tot: ti })
+    const { error } = await supabase.rpc('plan_kermis', {
+      p_attractie_id: attrId,
+      p_naam: naam.trim(),
+      p_plaats: plaats.trim() || naam.trim(),
+      p_postcode: postcode.trim(),
+      p_van: van,
+      p_tot: tot,
+    })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
-    setNaam(''); setVan(''); setTot('')
+    setNaam(''); setPlaats(''); setPostcode(''); setVan(''); setTot('')
     herlaad()
   }
 
-  async function verwijder(id: string) {
-    await supabase.from('locatie').delete().eq('id', id)
-    setLocaties((l) => l.filter((x) => x.id !== id))
+  async function verwijder(kermisId: string, attractieId: string) {
+    setLocaties((l) => l.filter((x) => !(x.kermisId === kermisId && x.attractieId === attractieId)))
+    await supabase.rpc('verwijder_kermis_koppeling', { p_kermis_id: kermisId, p_attractie_id: attractieId })
   }
 
   if (session === undefined || laden) {
@@ -104,10 +120,10 @@ export default function Agenda() {
       <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/uitbater')} hitSlop={12}><Text style={s.terug}>‹ Dashboard</Text></Pressable>
         <Text style={s.titel}>Agenda</Text>
-        <Text style={s.sub}>Waar staan je attracties de komende maanden?</Text>
+        <Text style={s.sub}>Waar staan je attracties de komende maanden? Bezoekers zien deze kermissen ook.</Text>
 
         <View style={s.kaart}>
-          <Text style={s.blokTitel}>Nieuwe locatie</Text>
+          <Text style={s.blokTitel}>Nieuwe kermis</Text>
 
           <Text style={[s.label, { marginTop: 14 }]}>Attractie</Text>
           <View style={s.chips}>
@@ -119,9 +135,23 @@ export default function Agenda() {
             ))}
           </View>
 
-          <Text style={[s.label, { marginTop: 14 }]}>Naam / plaats</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>Naam</Text>
           <TextInput style={s.input} value={naam} onChangeText={setNaam}
             placeholder="bv. Aalst Kermis" placeholderTextColor={C.muted} />
+
+          <View style={s.datumRij}>
+            <View style={{ flex: 1.4 }}>
+              <Text style={s.label}>Plaats</Text>
+              <TextInput style={s.input} value={plaats} onChangeText={setPlaats}
+                placeholder="bv. Aalst" placeholderTextColor={C.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Postcode</Text>
+              <TextInput style={s.input} value={postcode} onChangeText={setPostcode}
+                keyboardType="number-pad" maxLength={4}
+                placeholder="optioneel" placeholderTextColor={C.muted} />
+            </View>
+          </View>
 
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
@@ -141,16 +171,18 @@ export default function Agenda() {
           </Pressable>
         </View>
 
-        <Text style={[s.blokTitel, { marginTop: 24, marginBottom: 4 }]}>Geplande locaties</Text>
+        <Text style={[s.blokTitel, { marginTop: 24, marginBottom: 4 }]}>Geplande kermissen</Text>
         {locaties.length === 0
           ? <Text style={s.sub}>Nog niets gepland.</Text>
           : locaties.map((l) => (
-            <View key={l.id} style={s.locRij}>
+            <View key={`${l.kermisId}:${l.attractieId}`} style={s.locRij}>
               <View style={{ flex: 1 }}>
                 <Text style={s.locNaam}>{l.naam}</Text>
-                <Text style={s.locSub}>{naamVan(l.attractie_id)} · {toonDatum(l.van)} → {toonDatum(l.tot)}</Text>
+                <Text style={s.locSub}>
+                  {naamVan(l.attractieId)}{l.plaats ? ` · ${l.plaats}` : ''} · {toonDatum(l.van)} → {toonDatum(l.tot)}
+                </Text>
               </View>
-              <Pressable onPress={() => verwijder(l.id)} hitSlop={8}>
+              <Pressable onPress={() => verwijder(l.kermisId, l.attractieId)} hitSlop={8}>
                 <Text style={s.verwijder}>Verwijderen</Text>
               </Pressable>
             </View>
