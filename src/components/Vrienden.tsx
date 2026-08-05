@@ -10,10 +10,16 @@ const C = {
   redbg: 'rgba(225,29,72,0.10)', line: 'rgba(36,27,58,0.10)',
 }
 const MEDAILLE = ['🥇', '🥈', '🥉']
+type MetricKey = 'bezoeken' | 'kermissen' | 'bezoeken_maand'
+const METRICS: { key: MetricKey; label: string; lbl: string }[] = [
+  { key: 'bezoeken', label: 'Bezoeken', lbl: 'check-ins' },
+  { key: 'kermissen', label: 'Kermissen', lbl: 'kermissen' },
+  { key: 'bezoeken_maand', label: 'Deze maand', lbl: 'deze maand' },
+]
 
 type Persoon = { bezoeker_id: string; naam: string; gebruikersnaam?: string | null }
 type Verzoek = { verzoek_id: string; van_bezoeker: string; naam: string; gebruikersnaam?: string | null }
-type Rang = { bezoeker_id: string; naam: string; gebruikersnaam?: string | null; bezoeken: number; tradities: number; is_ik: boolean }
+type Rang = { bezoeker_id: string; naam: string; gebruikersnaam?: string | null; bezoeken: number; kermissen: number; bezoeken_maand: number; is_ik: boolean }
 function letter(p: { gebruikersnaam?: string | null; naam?: string | null }): string {
   return ((p.gebruikersnaam || p.naam || '?').slice(0, 1)).toUpperCase()
 }
@@ -30,6 +36,7 @@ export function Vrienden() {
   const [resultaat, setResultaat] = useState<Persoon | null>(null)
   const [geenResultaat, setGeenResultaat] = useState(false)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+  const [metric, setMetric] = useState<MetricKey>('bezoeken')
 
   async function herlaad() {
     const [{ data: v }, { data: vz }, { data: lb }] = await Promise.all([
@@ -139,21 +146,30 @@ export function Vrienden() {
       {bord.length <= 1 && vrienden.length === 0 ? (
         <View style={s.leeg}><Text style={s.leegT}>Voeg vrienden toe om samen een ranglijst te vormen.</Text></View>
       ) : (
-        <View style={{ gap: 8 }}>
-          {bord.map((r, i) => (
-            <View key={r.bezoeker_id} style={[s.rang, r.is_ik && s.rangIk]}>
-              <Text style={s.rangPos}>{MEDAILLE[i] ?? `${i + 1}`}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
-                <Text style={s.rangSub}>{r.tradities} traditie{Number(r.tradities) === 1 ? '' : 's'}</Text>
+        <>
+          <View style={s.metricRij}>
+            {METRICS.map((m) => (
+              <Pressable key={m.key} onPress={() => setMetric(m.key)} style={[s.metricTab, metric === m.key && s.metricTabAan]}>
+                <Text style={[s.metricTabT, metric === m.key && s.metricTabTAan]}>{m.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={{ gap: 8 }}>
+            {[...bord].sort((a, b) => Number(b[metric]) - Number(a[metric]) || Number(b.bezoeken) - Number(a.bezoeken)).map((r, i) => (
+              <View key={r.bezoeker_id} style={[s.rang, r.is_ik && s.rangIk]}>
+                <Text style={s.rangPos}>{MEDAILLE[i] ?? `${i + 1}`}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
+                  <Text style={s.rangSub}>{r.bezoeken} check-ins · {r.kermissen} kermissen</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={s.rangGetal}>{r[metric]}</Text>
+                  <Text style={s.rangLbl}>{METRICS.find((m) => m.key === metric)?.lbl}</Text>
+                </View>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={s.rangGetal}>{r.bezoeken}</Text>
-                <Text style={s.rangLbl}>bezoeken</Text>
-              </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        </>
       )}
 
       {/* Vriendenlijst */}
@@ -216,6 +232,11 @@ const s = StyleSheet.create({
   neeKnopT: { color: C.muted, fontWeight: '900', fontSize: 15 },
   leeg: { backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 18 },
   leegT: { color: C.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20 },
+  metricRij: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  metricTab: { flex: 1, backgroundColor: C.veld, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  metricTabAan: { backgroundColor: C.violet },
+  metricTabT: { color: C.muted, fontWeight: '800', fontSize: 12 },
+  metricTabTAan: { color: '#fff' },
   rang: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 14 },
   rangIk: { borderColor: C.violet, borderWidth: 1.5, backgroundColor: 'rgba(139,92,246,0.06)' },
   rangPos: { fontSize: 18, fontWeight: '900', color: C.ink, width: 28, textAlign: 'center' },

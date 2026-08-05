@@ -37,11 +37,23 @@ export default function Inbox() {
     })()
   }, [])
 
+  async function wis(id: string) {
+    setMeldingen((prev) => prev.filter((m) => m.id !== id))
+    await supabase.from('melding').delete().eq('id', id)
+  }
+  async function wisAlles() {
+    setMeldingen([])
+    await supabase.from('melding').delete().not('id', 'is', null)
+  }
+
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={wrapC}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
-        <Text style={s.paginaTitel}>🔔 Meldingen</Text>
+        <View style={s.kop}>
+          <Text style={s.paginaTitel}>🔔 Meldingen</Text>
+          {meldingen.length > 0 ? <Pressable onPress={wisAlles} hitSlop={8}><Text style={s.wisAlles}>Alles wissen</Text></Pressable> : null}
+        </View>
 
         {laden ? (
           <View style={{ paddingVertical: 40 }}><ActivityIndicator color={C.coral} size="large" /></View>
@@ -61,6 +73,7 @@ export default function Inbox() {
                   <Text style={s.tijd}>{geleden(m.created_at)} geleden</Text>
                 </View>
                 {!m.gelezen ? <View style={s.stip} /> : null}
+                <Pressable onPress={() => wis(m.id)} hitSlop={8} style={s.wisKnop}><Text style={s.wisKnopT}>✕</Text></Pressable>
               </View>
             ))}
           </View>
@@ -74,7 +87,11 @@ const s = StyleSheet.create({
   scherm: { flex: 1, backgroundColor: C.bg },
   wrap: { padding: 22, paddingTop: 56, paddingBottom: 40, maxWidth: 520, width: '100%', alignSelf: 'center', flexGrow: 1 },
   terug: { color: C.muted, fontSize: 16, fontWeight: '600', marginBottom: 18 },
-  paginaTitel: { color: C.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.4, marginBottom: 14 },
+  kop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  paginaTitel: { color: C.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.4 },
+  wisAlles: { color: C.violet, fontSize: 13.5, fontWeight: '800' },
+  wisKnop: { width: 30, height: 30, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  wisKnopT: { color: C.muted, fontSize: 15, fontWeight: '900' },
   leeg: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 26, alignItems: 'center', marginTop: 8 },
   leegIcon: { fontSize: 40 },
   leegT: { color: C.ink, fontSize: 17, fontWeight: '900', marginTop: 10 },

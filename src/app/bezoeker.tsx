@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -223,6 +223,12 @@ function Home({ session }: { session: Session }) {
   }
 
   useEffect(() => { pushStatus().then(setPush) }, [])
+
+  const laadOngelezen = useCallback(async () => {
+    const { count } = await supabase.from('melding').select('id', { count: 'exact', head: true }).eq('gelezen', false)
+    setOngelezen(count ?? 0)
+  }, [])
+  useFocusEffect(useCallback(() => { laadOngelezen() }, [laadOngelezen]))
 
   async function wisselPush() {
     setPushBezig(true)
