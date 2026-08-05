@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase'
 import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KermisKalender } from '../components/KermisKalender'
+import { Vrienden } from '../components/Vrienden'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -166,6 +167,7 @@ function Home({ session }: { session: Session }) {
   const [gevolgdAantal, setGevolgdAantal] = useState(0)
   const [dezeWeek, setDezeWeek] = useState<any[]>([])
   const [favBuurt, setFavBuurt] = useState<any[]>([])
+  const [ongelezen, setOngelezen] = useState(0)
   const [laden, setLaden] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
   const [vActie, setVActie] = useState<any | null>(null)
@@ -313,6 +315,9 @@ function Home({ session }: { session: Session }) {
       }).filter(Boolean).slice(0, 5)
       setFavBuurt(fav as any[])
 
+      const { count } = await supabase.from('melding').select('id', { count: 'exact', head: true }).eq('gelezen', false)
+      setOngelezen(count ?? 0)
+
       setLaden(false)
     })()
   }, [])
@@ -341,6 +346,12 @@ function Home({ session }: { session: Session }) {
 
   return (
     <View style={s.scherm}>
+      <Pressable
+        style={[s.belKnop, { top: Platform.OS === 'web' ? 14 : insets.top + 4 }]}
+        onPress={() => router.push('/inbox')} hitSlop={8}>
+        <Text style={s.radKnopT}>🔔</Text>
+        {ongelezen > 0 ? <View style={s.belBadge}><Text style={s.belBadgeT}>{ongelezen > 9 ? '9+' : ongelezen}</Text></View> : null}
+      </Pressable>
       <Pressable
         style={[s.radKnop, { top: Platform.OS === 'web' ? 14 : insets.top + 4 }]}
         onPress={() => setTab(tab === 'settings' ? 'home' : 'settings')} hitSlop={8}>
@@ -627,15 +638,7 @@ function Home({ session }: { session: Session }) {
 
       {tab === 'social' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>👥 Vrienden</Text>
-        <View style={s.binnenkort}>
-          <Text style={s.binnenkortIcon}>🎢</Text>
-          <Text style={s.binnenkortT}>Binnenkort</Text>
-          <Text style={s.binnenkortSub}>
-            Zoek vrienden via hun e-mail, vergelijk jullie streaks en klim samen in de leaderboards.
-            Dit onderdeel komt er zo aan!
-          </Text>
-        </View>
+        <Vrienden />
       </ScrollView>
       ) : null}
 
@@ -787,6 +790,13 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   radKnopT: { fontSize: 20 },
+  belKnop: {
+    position: 'absolute', right: 70, zIndex: 30, width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line,
+    shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+  },
+  belBadge: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 999, backgroundColor: C.coralD, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#fff' },
+  belBadgeT: { color: '#fff', fontSize: 10, fontWeight: '900' },
   kraamChip: { alignSelf: 'flex-start', backgroundColor: 'rgba(251,113,133,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 6 },
   kraamChipT: { color: C.coralD, fontSize: 12, fontWeight: '800' },
   binnenkort: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 26, alignItems: 'center', marginTop: 4 },
