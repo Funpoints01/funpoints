@@ -299,6 +299,15 @@ function Home({ session }: { session: Session }) {
           </View>
         </View>
 
+        <Pressable style={s.gidsKaart} onPress={() => router.push('/kramen')}>
+          <Text style={s.gidsIcon}>🎪</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.gidsTitel}>Ontdek kramen</Text>
+            <Text style={s.gidsSub}>Volg je favorieten en zie wanneer ze in de buurt zijn</Text>
+          </View>
+          <Text style={s.gidsChev}>›</Text>
+        </Pressable>
+
         {pushOndersteund() && push !== 'aan' ? (
           <Pressable style={s.pushBalk} onPress={wisselPush} disabled={pushBezig}>
             <Text style={s.pushBalkT}>
@@ -638,6 +647,15 @@ const s = StyleSheet.create({
   heroLijn: { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.35)' },
   heroNum: { color: '#fff', fontSize: 22, fontWeight: '900' },
   heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  gidsKaart: {
+    flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14,
+    backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)',
+    borderRadius: 16, padding: 16,
+  },
+  gidsIcon: { fontSize: 26 },
+  gidsTitel: { color: C.ink, fontSize: 15.5, fontWeight: '900' },
+  gidsSub: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2, lineHeight: 17 },
+  gidsChev: { color: C.violet, fontSize: 24, fontWeight: '700' },
 
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
   chalKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16, flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
