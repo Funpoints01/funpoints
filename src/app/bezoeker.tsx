@@ -180,6 +180,7 @@ function Home({ session }: { session: Session }) {
   const insets = useSafeAreaInsets()
   const [bezId, setBezId] = useState<string | null>(null)
   const [fNaam, setFNaam] = useState('')
+  const [fGebruikersnaam, setFGebruikersnaam] = useState('')
   const [fPostcode, setFPostcode] = useState('')
   const [profielBezig, setProfielBezig] = useState(false)
   const [profielMelding, setProfielMelding] = useState<string | null>(null)
@@ -199,7 +200,19 @@ function Home({ session }: { session: Session }) {
     if (fPostcode.trim() && !/^\d{4}$/.test(fPostcode.trim())) {
       setProfielMelding('Geef een geldige postcode (4 cijfers).'); return
     }
+    const gnaam = fGebruikersnaam.trim()
+    if (gnaam && !/^[A-Za-z0-9_]{3,20}$/.test(gnaam)) {
+      setProfielMelding('Gebruikersnaam: 3–20 tekens, enkel letters, cijfers en _.'); return
+    }
     setProfielBezig(true); setProfielMelding(null)
+    if (gnaam) {
+      const { error: ge } = await supabase.rpc('zet_gebruikersnaam', { p_naam: gnaam })
+      if (ge) {
+        setProfielBezig(false)
+        setProfielMelding(ge.message.includes('BEZET') ? 'Die gebruikersnaam is al bezet.' : 'Gebruikersnaam ongeldig.')
+        return
+      }
+    }
     const { error } = await supabase.from('bezoeker')
       .update({ naam: fNaam.trim() || null, postcode: fPostcode.trim() || null })
       .eq('id', bezId)
@@ -232,10 +245,11 @@ function Home({ session }: { session: Session }) {
 
   useEffect(() => {
     (async () => {
-      const { data: bez } = await supabase.from('bezoeker').select('id, naam, code, postcode')
+      const { data: bez } = await supabase.from('bezoeker').select('id, naam, code, postcode, gebruikersnaam')
         .eq('auth_user_id', session.user.id).maybeSingle()
       setNaam(bez?.naam ?? ''); setCode(bez?.code ?? null); setIsBez(!!bez)
       setBezId(bez?.id ?? null); setFNaam(bez?.naam ?? ''); setFPostcode(bez?.postcode ?? '')
+      setFGebruikersnaam(bez?.gebruikersnaam ?? '')
 
       const todayISO = new Date().toISOString().slice(0, 10)
       const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }] = await Promise.all([
@@ -561,6 +575,13 @@ function Home({ session }: { session: Session }) {
           <Text style={s.label}>Naam</Text>
           <TextInput style={s.input} value={fNaam} onChangeText={setFNaam}
             placeholder="Je naam" placeholderTextColor={C.muted} />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Gebruikersnaam</Text>
+          <TextInput style={s.input} value={fGebruikersnaam}
+            onChangeText={(t) => setFGebruikersnaam(t.replace(/[^A-Za-z0-9_]/g, ''))}
+            autoCapitalize="none" maxLength={20}
+            placeholder="bv. kermiskoning" placeholderTextColor={C.muted} />
+          <Text style={s.veldHint}>Zo vinden vrienden je. 3–20 tekens: letters, cijfers of _.</Text>
 
           <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
           <TextInput style={s.input} value={fPostcode} onChangeText={setFPostcode}

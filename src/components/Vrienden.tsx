@@ -11,9 +11,12 @@ const C = {
 }
 const MEDAILLE = ['🥇', '🥈', '🥉']
 
-type Persoon = { bezoeker_id: string; naam: string }
-type Verzoek = { verzoek_id: string; van_bezoeker: string; naam: string }
-type Rang = { bezoeker_id: string; naam: string; bezoeken: number; tradities: number; is_ik: boolean }
+type Persoon = { bezoeker_id: string; naam: string; gebruikersnaam?: string | null }
+type Verzoek = { verzoek_id: string; van_bezoeker: string; naam: string; gebruikersnaam?: string | null }
+type Rang = { bezoeker_id: string; naam: string; gebruikersnaam?: string | null; bezoeken: number; tradities: number; is_ik: boolean }
+function letter(p: { gebruikersnaam?: string | null; naam?: string | null }): string {
+  return ((p.gebruikersnaam || p.naam || '?').slice(0, 1)).toUpperCase()
+}
 
 export function Vrienden() {
   const router = useRouter()
@@ -44,10 +47,11 @@ export function Vrienden() {
   async function zoeken() {
     if (!email.trim()) return
     setZoekBezig(true); setResultaat(null); setGeenResultaat(false); setMelding(null)
-    const { data } = await supabase.rpc('zoek_bezoeker', { p_email: email.trim() })
+    const { data } = await supabase.rpc('zoek_vrienden', { p_term: email.trim() })
     setZoekBezig(false)
-    const r = (data ?? []) as Persoon[]
-    if (r.length) setResultaat(r[0]); else setGeenResultaat(true)
+    const r = (data ?? []) as any[]
+    if (r.length) setResultaat({ bezoeker_id: r[0].id, naam: r[0].naam, gebruikersnaam: r[0].gebruikersnaam })
+    else setGeenResultaat(true)
   }
 
   async function stuurVerzoek(id: string) {
@@ -82,11 +86,11 @@ export function Vrienden() {
       {/* Zoeken op e-mail */}
       <View style={s.kaart}>
         <Text style={s.blokTitel}>Vriend toevoegen</Text>
-        <Text style={s.blokSub}>Zoek iemand op zijn e-mailadres.</Text>
+        <Text style={s.blokSub}>Zoek iemand op zijn gebruikersnaam.</Text>
         <View style={s.zoekRij}>
-          <TextInput style={s.input} value={email} onChangeText={(t) => { setEmail(t); setGeenResultaat(false) }}
-            autoCapitalize="none" keyboardType="email-address"
-            placeholder="vriend@voorbeeld.be" placeholderTextColor={C.muted} />
+          <TextInput style={s.input} value={email}
+            onChangeText={(t) => { setEmail(t.replace(/[^A-Za-z0-9_]/g, '')); setGeenResultaat(false) }}
+            autoCapitalize="none" placeholder="gebruikersnaam" placeholderTextColor={C.muted} />
           <Pressable onPress={zoeken} disabled={zoekBezig} style={[s.zoekKnop, zoekBezig && s.uit]}>
             {zoekBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.zoekKnopT}>Zoek</Text>}
           </Pressable>
@@ -94,17 +98,17 @@ export function Vrienden() {
 
         {resultaat ? (
           <View style={s.resRij}>
-            <View style={s.avatar}><Text style={s.avatarT}>{(resultaat.naam || '?').slice(0, 1).toUpperCase()}</Text></View>
+            <View style={s.avatar}><Text style={s.avatarT}>{letter(resultaat)}</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.resNaam}>{resultaat.naam || 'Bezoeker'}</Text>
-              <Text style={s.resSub}>Gevonden ✓</Text>
+              <Text style={s.resNaam}>@{resultaat.gebruikersnaam}</Text>
+              <Text style={s.resSub}>{resultaat.naam || 'Bezoeker'}</Text>
             </View>
             <Pressable onPress={() => stuurVerzoek(resultaat.bezoeker_id)} style={s.volgKnop}>
               <Text style={s.volgKnopT}>+ Verzoek</Text>
             </Pressable>
           </View>
         ) : null}
-        {geenResultaat ? <Text style={s.geen}>Geen bezoeker met dat e-mailadres gevonden.</Text> : null}
+        {geenResultaat ? <Text style={s.geen}>Geen bezoeker met die gebruikersnaam gevonden.</Text> : null}
         {melding ? (
           <View style={[s.mBox, melding.ok && s.mBoxOk]}><Text style={[s.mT, melding.ok && s.mTOk]}>{melding.tekst}</Text></View>
         ) : null}
@@ -117,9 +121,9 @@ export function Vrienden() {
           <View style={{ gap: 10 }}>
             {verzoeken.map((v) => (
               <View key={v.verzoek_id} style={s.vzKaart}>
-                <View style={s.avatar}><Text style={s.avatarT}>{(v.naam || '?').slice(0, 1).toUpperCase()}</Text></View>
+                <View style={s.avatar}><Text style={s.avatarT}>{letter(v)}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.resNaam}>{v.naam || 'Bezoeker'}</Text>
+                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || 'Bezoeker')}</Text>
                   <Text style={s.resSub}>wil je vriend worden</Text>
                 </View>
                 <Pressable onPress={() => antwoord(v.verzoek_id, true)} style={s.jaKnop}><Text style={s.jaKnopT}>Aanvaard</Text></Pressable>
@@ -140,7 +144,7 @@ export function Vrienden() {
             <View key={r.bezoeker_id} style={[s.rang, r.is_ik && s.rangIk]}>
               <Text style={s.rangPos}>{MEDAILLE[i] ?? `${i + 1}`}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.naam || 'Bezoeker')}</Text>
+                <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
                 <Text style={s.rangSub}>{r.tradities} traditie{Number(r.tradities) === 1 ? '' : 's'}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
@@ -159,9 +163,12 @@ export function Vrienden() {
           <View style={{ gap: 10 }}>
             {vrienden.map((v) => (
               <Pressable key={v.bezoeker_id} style={s.vriendRij}
-                onPress={() => router.push(`/vriend/${v.bezoeker_id}?naam=${encodeURIComponent(v.naam || 'Vriend')}`)}>
-                <View style={s.avatar}><Text style={s.avatarT}>{(v.naam || '?').slice(0, 1).toUpperCase()}</Text></View>
-                <Text style={[s.resNaam, { flex: 1 }]}>{v.naam || 'Bezoeker'}</Text>
+                onPress={() => router.push(`/vriend/${v.bezoeker_id}?naam=${encodeURIComponent(v.gebruikersnaam ? '@' + v.gebruikersnaam : (v.naam || 'Vriend'))}`)}>
+                <View style={s.avatar}><Text style={s.avatarT}>{letter(v)}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || 'Bezoeker')}</Text>
+                  {v.naam && v.gebruikersnaam ? <Text style={s.resSub}>{v.naam}</Text> : null}
+                </View>
                 <Text style={s.chev}>›</Text>
               </Pressable>
             ))}

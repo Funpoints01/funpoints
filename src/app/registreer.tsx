@@ -38,6 +38,7 @@ export default function Registreer() {
   const { code } = useLocalSearchParams<{ code?: string }>()
   const [voornaam, setVoornaam] = useState('')
   const [achternaam, setAchternaam] = useState('')
+  const [gebruikersnaam, setGebruikersnaam] = useState('')
   const [email, setEmail] = useState('')
   const [gbISO, setGbISO] = useState('')
   const [postcode, setPostcode] = useState('')
@@ -51,6 +52,8 @@ export default function Registreer() {
     setFout('')
     if (!voornaam.trim()) return setFout('Vul je voornaam in.')
     if (!achternaam.trim()) return setFout('Vul je achternaam in.')
+    const gnaam = gebruikersnaam.trim()
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(gnaam)) return setFout('Kies een gebruikersnaam van 3–20 tekens (letters, cijfers of _).')
     if (!gbISO) return setFout('Kies je geboortedatum.')
     const iso = gbISO
     const leeftijd = leeftijdVan(iso)
@@ -61,6 +64,10 @@ export default function Registreer() {
     if (ww.length < 6) return setFout('Kies een wachtwoord van minstens 6 tekens.')
 
     setBezig(true)
+    // Gebruikersnaam vrij? (vóór het account bestaat)
+    const { data: vrij } = await supabase.rpc('gebruikersnaam_vrij', { p_naam: gnaam })
+    if (vrij === false) { setBezig(false); return setFout('Die gebruikersnaam is al bezet, kies een andere.') }
+
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: ww })
     if (error) {
       setBezig(false)
@@ -77,11 +84,15 @@ export default function Registreer() {
     // Profiel opslaan
     const { error: e2 } = await supabase.from('bezoeker').insert({
       auth_user_id: data.user.id, naam: `${voornaam.trim()} ${achternaam.trim()}`, email: email.trim(),
-      geboortedatum: iso, postcode: postcode.trim(),
+      gebruikersnaam: gnaam, geboortedatum: iso, postcode: postcode.trim(),
     })
     if (e2) {
       setBezig(false)
-      return setFout('Account gemaakt, maar je profiel opslaan mislukte. Probeer opnieuw.')
+      return setFout(
+        (e2 as any).code === '23505' || e2.message.toLowerCase().includes('gebruikersnaam')
+          ? 'Die gebruikersnaam is net bezet geraakt, kies een andere.'
+          : 'Account gemaakt, maar je profiel opslaan mislukte. Probeer opnieuw.'
+      )
     }
     // Kaartje koppelen (punten verhuizen mee) — niet-blokkerend
     if (code) {
@@ -123,6 +134,13 @@ export default function Registreer() {
                 placeholder="Achternaam" placeholderTextColor={C.muted} />
             </View>
           </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Gebruikersnaam</Text>
+          <TextInput style={s.input} value={gebruikersnaam}
+            onChangeText={(t) => setGebruikersnaam(t.replace(/[^A-Za-z0-9_]/g, ''))}
+            autoCapitalize="none" maxLength={20}
+            placeholder="bv. kermiskoning" placeholderTextColor={C.muted} />
+          <Text style={s.veldHint}>Hiermee vinden vrienden je. 3–20 tekens: letters, cijfers of _.</Text>
 
           <Text style={[s.label, { marginTop: 14 }]}>E-mail</Text>
           <TextInput style={s.input} value={email} onChangeText={setEmail}
@@ -176,6 +194,7 @@ const s = StyleSheet.create({
     backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line,
     color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13,
   },
+  veldHint: { color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 16 },
   knop: { borderRadius: 13, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   knopCoral: { backgroundColor: C.coral },
   knopCoralT: { color: '#fff', fontWeight: '800', fontSize: 16 },
