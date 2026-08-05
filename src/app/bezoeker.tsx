@@ -91,6 +91,24 @@ function kort(iso: string): string {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
+function provVan(pc?: string | null): string | null {
+  const n = parseInt(((pc || '').match(/\d+/g) || []).join(''), 10)
+  if (!n) return null
+  if (n <= 1299) return 'BRU'
+  if (n <= 1499) return 'WBR'
+  if (n <= 1999) return 'VBR'
+  if (n <= 2999) return 'ANT'
+  if (n <= 3499) return 'VBR'
+  if (n <= 3999) return 'LIM'
+  if (n <= 4999) return 'LIE'
+  if (n <= 5999) return 'NAM'
+  if (n <= 6599) return 'HEN'
+  if (n <= 6999) return 'LUX'
+  if (n <= 7999) return 'HEN'
+  if (n <= 8999) return 'WVL'
+  if (n <= 9999) return 'OVL'
+  return null
+}
 function streakVan(dagen: Set<string>): number {
   if (dagen.size === 0) return 0
   const sorted = [...dagen].sort().reverse()
@@ -145,6 +163,9 @@ function Home({ session }: { session: Session }) {
   const [acties, setActies] = useState<any[]>([])
   const [superAct, setSuperAct] = useState<any | null>(null)
   const [stats, setStats] = useState({ punten: 0, bezocht: 0, streak: 0, lunapark: false })
+  const [gevolgdAantal, setGevolgdAantal] = useState(0)
+  const [dezeWeek, setDezeWeek] = useState<any[]>([])
+  const [favBuurt, setFavBuurt] = useState<any[]>([])
   const [laden, setLaden] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
   const [vActie, setVActie] = useState<any | null>(null)
@@ -215,13 +236,14 @@ function Home({ session }: { session: Session }) {
       setBezId(bez?.id ?? null); setFNaam(bez?.naam ?? ''); setFPostcode(bez?.postcode ?? '')
 
       const todayISO = new Date().toISOString().slice(0, 10)
-      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }] = await Promise.all([
+      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }] = await Promise.all([
         supabase.from('attractie_publiek').select('id, naam, soort'),
         supabase.from('saldo').select('attractie_id, saldo'),
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
-        supabase.from('kermis').select('id, naam, plaats, van, tot').gte('tot', todayISO).order('van'),
-        supabase.from('kermis_attractie').select('kermis_id'),
+        supabase.from('kermis').select('id, naam, plaats, postcode, van, tot').gte('tot', todayISO).order('van'),
+        supabase.from('kermis_attractie').select('kermis_id, attractie_id'),
         supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
+        supabase.from('kraam_volger').select('attractie_id'),
       ])
 
       const { data: ss } = await supabase.rpc('actieve_superster')
@@ -256,6 +278,40 @@ function Home({ session }: { session: Session }) {
         geboost: !!x.boost_tot && new Date(x.boost_tot).getTime() > nu,
       })).sort((p: any, q: any) => (q.geboost ? 1 : 0) - (p.geboost ? 1 : 0) || String(p.van).localeCompare(String(q.van)))
       setActies(actLijst)
+
+      // --- Volgen, "deze week" en favorieten in de buurt ---
+      const follows = new Set((volg ?? []).map((r: any) => r.attractie_id))
+      setGevolgdAantal(follows.size)
+      const bezProv = provVan(bez?.postcode)
+
+      const kMap = new Map<string, any>((kerm ?? []).map((k: any) => [k.id, k]))
+      const attrPerKermis = new Map<string, number>()
+      const kermisPerAttr = new Map<string, any[]>()
+      ;(ka ?? []).forEach((r: any) => {
+        attrPerKermis.set(r.kermis_id, (attrPerKermis.get(r.kermis_id) ?? 0) + 1)
+        const k = kMap.get(r.kermis_id)
+        if (k) { const arr = kermisPerAttr.get(r.attractie_id) ?? []; arr.push(k); kermisPerAttr.set(r.attractie_id, arr) }
+      })
+
+      const week = (kerm ?? []).map((k: any) => {
+        const actief = k.van <= todayISO && k.tot >= todayISO
+        const dagen = Math.round((new Date(k.van).getTime() - new Date(todayISO).getTime()) / 86400000)
+        return { ...k, actief, kramen: attrPerKermis.get(k.id) ?? 0, inBuurt: !!bezProv && provVan(k.postcode) === bezProv, dagen }
+      }).filter((k: any) => k.actief || (k.van > todayISO && k.dagen <= 14))
+        .sort((a: any, b: any) => (b.actief ? 1 : 0) - (a.actief ? 1 : 0) || String(a.van).localeCompare(String(b.van)))
+        .slice(0, 6)
+      setDezeWeek(week)
+
+      const fav = [...follows].map((aid) => {
+        const ks = (kermisPerAttr.get(aid) ?? []).slice().sort((x, y) => String(x.van).localeCompare(String(y.van)))
+        const huidig = ks.find((k) => k.van <= todayISO && k.tot >= todayISO)
+        const volgend = ks.find((k) => k.van > todayISO)
+        const ref = huidig ?? volgend
+        if (!ref) return null
+        if (!(bezProv && provVan(ref.postcode) === bezProv)) return null
+        return { attractieId: aid, kraam: naamMap.get(aid) ?? 'Kraam', kermis: ref.naam, plaats: ref.plaats, nu: !!huidig }
+      }).filter(Boolean).slice(0, 5)
+      setFavBuurt(fav as any[])
 
       setLaden(false)
     })()
@@ -293,9 +349,11 @@ function Home({ session }: { session: Session }) {
         <View style={s.hero}>
           <Text style={s.heroHi}>Hallo{voornaam ? `, ${voornaam}` : ''} 👋</Text>
           <View style={s.heroStats}>
-            <View style={s.heroStat}><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>kramen bezocht</Text></View>
+            <View style={s.heroStat}><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>bezocht</Text></View>
             <View style={s.heroLijn} />
-            <View style={s.heroStat}><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten gespaard</Text></View>
+            <View style={s.heroStat}><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten</Text></View>
+            <View style={s.heroLijn} />
+            <View style={s.heroStat}><Text style={s.heroNum}>{gevolgdAantal}</Text><Text style={s.heroSub}>gevolgd</Text></View>
           </View>
         </View>
 
@@ -328,6 +386,47 @@ function Home({ session }: { session: Session }) {
             actie={superAct}
             onPress={() => (superAct.eenmalig ? toonVoucher(superAct) : router.push(`/kraam/${superAct.attractie_id}`))}
           />
+        ) : null}
+
+        {favBuurt.length > 0 ? (
+          <>
+            <Text style={s.sectie}>❤️ Favorieten in de buurt</Text>
+            <View style={{ gap: 10 }}>
+              {favBuurt.map((f: any) => (
+                <Pressable key={f.attractieId} style={s.favKaart} onPress={() => router.push(`/kraam/${f.attractieId}`)}>
+                  <View style={s.favIcon}><Text style={{ fontSize: 20 }}>🎪</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.favNaam}>{f.kraam}</Text>
+                    <Text style={[s.favSub, f.nu && s.favNu]}>
+                      {f.nu ? `🟢 Nu op ${f.kermis}` : `📍 Binnenkort · ${f.kermis}`}{f.plaats ? ` · ${f.plaats}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={s.favChev}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {dezeWeek.length > 0 ? (
+          <>
+            <Text style={s.sectie}>🔥 Deze week</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 4, paddingRight: 4 }}>
+              {dezeWeek.map((k: any) => (
+                <Pressable key={k.id} style={s.weekKaart} onPress={() => router.push(`/kermis/${k.id}`)}>
+                  <View style={s.weekBadgeRij}>
+                    {k.actief
+                      ? <Text style={[s.weekBadge, s.weekBadgeNu]}>🟢 Nu open</Text>
+                      : <Text style={[s.weekBadge, s.weekBadgeSoon]}>Binnenkort</Text>}
+                    {k.inBuurt ? <Text style={[s.weekBadge, s.weekBadgeBuurt]}>📍 regio</Text> : null}
+                  </View>
+                  <Text style={s.weekNaam} numberOfLines={2}>{k.naam}</Text>
+                  <Text style={s.weekSub}>📅 {kort(k.van)} – {kort(k.tot)}</Text>
+                  <Text style={s.weekMeta}>{k.plaats ? `${k.plaats} · ` : ''}{k.kramen} {k.kramen === 1 ? 'kraam' : 'kramen'}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
         ) : null}
 
         {acties.length > 0 ? (
@@ -660,6 +759,21 @@ const s = StyleSheet.create({
   tegelSub: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
+  favKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(251,113,133,0.4)', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  favIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: 'rgba(251,113,133,0.14)', alignItems: 'center', justifyContent: 'center' },
+  favNaam: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
+  favSub: { color: C.muted, fontSize: 12.5, fontWeight: '700', marginTop: 3 },
+  favNu: { color: C.green },
+  favChev: { color: C.coral, fontSize: 24, fontWeight: '700' },
+  weekKaart: { width: 220, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16 },
+  weekBadgeRij: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  weekBadge: { fontSize: 10.5, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  weekBadgeNu: { color: '#0E7C5A', backgroundColor: 'rgba(16,185,129,0.14)' },
+  weekBadgeSoon: { color: '#B45309', backgroundColor: 'rgba(245,158,11,0.16)' },
+  weekBadgeBuurt: { color: C.coralD, backgroundColor: 'rgba(251,113,133,0.14)' },
+  weekNaam: { color: C.ink, fontSize: 16, fontWeight: '900', minHeight: 40 },
+  weekSub: { color: C.muted, fontSize: 12.5, fontWeight: '700', marginTop: 6 },
+  weekMeta: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 4 },
   chalKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16, flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   chalIcon: { fontSize: 26, marginTop: 2 },
   chalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
