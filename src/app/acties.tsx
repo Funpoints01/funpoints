@@ -179,16 +179,24 @@ export default function Acties() {
   async function herlaad() {
     const uid = session?.user?.id
     if (!uid) return
-    const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
+    const [{ data: u }, { data: att }] = await Promise.all([
       supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
-      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies').order('van'),
     ])
     setCredits(u?.credits ?? 0)
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
     if (lijst.length && !attrId) setAttrId(lijst[0].id)
-    setActies((act ?? []) as Actie[])
+    // Enkel de acties van de eigen attracties tonen (niet die van andere uitbaters).
+    const eigenIds = lijst.map((a) => a.id)
+    let act: Actie[] = []
+    if (eigenIds.length) {
+      const { data } = await supabase.from('actie')
+        .select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies')
+        .in('attractie_id', eigenIds).order('van')
+      act = (data ?? []) as Actie[]
+    }
+    setActies(act)
     setLaden(false)
   }
   useEffect(() => { if (session) herlaad() }, [session])
