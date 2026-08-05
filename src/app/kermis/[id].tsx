@@ -22,12 +22,17 @@ export default function KermisDetail() {
   const [kramen, setKramen] = useState<Attr[]>([])
   const [volgSet, setVolgSet] = useState<Set<string>>(new Set())
   const [isBez, setIsBez] = useState(false)
+  const [loopt, setLoopt] = useState(false)
+  const [ingecheckt, setIngecheckt] = useState(false)
+  const [inchBezig, setInchBezig] = useState(false)
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
     (async () => {
       const { data: k } = await supabase.from('kermis').select('*').eq('id', id).maybeSingle()
       setKermis(k)
+      const vandaag = new Date().toISOString().slice(0, 10)
+      setLoopt(!!k && k.van <= vandaag && k.tot >= vandaag)
       const { data: ka } = await supabase.from('kermis_attractie').select('attractie_id').eq('kermis_id', id)
       const ids = new Set((ka ?? []).map((r: any) => r.attractie_id))
       const { data: att } = await supabase.from('attractie_publiek').select('id, naam, soort')
@@ -40,11 +45,20 @@ export default function KermisDetail() {
           setIsBez(true)
           const { data: v } = await supabase.from('kraam_volger').select('attractie_id')
           setVolgSet(new Set((v ?? []).map((r: any) => r.attractie_id)))
+          const { data: ic } = await supabase.from('incheck').select('kermis_id').eq('kermis_id', id).maybeSingle()
+          setIngecheckt(!!ic)
         }
       }
       setLaden(false)
     })()
   }, [id])
+
+  async function incheckNu() {
+    setInchBezig(true)
+    const { error } = await supabase.rpc('incheck_kermis', { p_kermis_id: id })
+    setInchBezig(false)
+    if (!error) setIngecheckt(true)
+  }
 
   async function wisselVolg(attractieId: string) {
     const isVolg = volgSet.has(attractieId)
@@ -75,6 +89,17 @@ export default function KermisDetail() {
           <Text style={s.heroTitel}>{kermis.naam}</Text>
           <Text style={s.heroSub}>{kermis.plaats}{kermis.postcode ? ` · ${kermis.postcode}` : ''}</Text>
           <View style={s.datumPil}><Text style={s.datumPilT}>{kort(kermis.van)} – {kort(kermis.tot)}</Text></View>
+          {isBez ? (
+            ingecheckt ? (
+              <View style={s.inchKlaar}><Text style={s.inchKlaarT}>✓ Je bent hier ingecheckt</Text></View>
+            ) : loopt ? (
+              <Pressable onPress={incheckNu} disabled={inchBezig} style={s.inchKnop}>
+                <Text style={s.inchKnopT}>{inchBezig ? '…' : '📍 Ik ben hier — inchecken'}</Text>
+              </Pressable>
+            ) : (
+              <Text style={s.inchHint}>Inchecken kan zodra de kermis loopt</Text>
+            )
+          ) : null}
         </View>
 
         <Text style={s.sectie}>Kramen op deze kermis ({kramen.length})</Text>
@@ -120,6 +145,11 @@ const s = StyleSheet.create({
   heroSub: { color: 'rgba(255,255,255,0.92)', fontSize: 14.5, fontWeight: '600', marginTop: 4 },
   datumPil: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
   datumPilT: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  inchKnop: { marginTop: 14, backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12 },
+  inchKnopT: { color: C.coralD, fontWeight: '900', fontSize: 14.5 },
+  inchKlaar: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  inchKlaarT: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  inchHint: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontWeight: '600', marginTop: 12 },
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
   leeg: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 18 },
   rij: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 13 },

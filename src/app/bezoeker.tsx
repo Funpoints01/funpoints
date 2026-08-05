@@ -299,14 +299,18 @@ function Home({ session }: { session: Session }) {
           </View>
         </View>
 
-        <Pressable style={s.gidsKaart} onPress={() => router.push('/kramen')}>
-          <Text style={s.gidsIcon}>🎪</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={s.gidsTitel}>Ontdek kramen</Text>
-            <Text style={s.gidsSub}>Volg je favorieten en zie wanneer ze in de buurt zijn</Text>
-          </View>
-          <Text style={s.gidsChev}>›</Text>
-        </Pressable>
+        <View style={s.tegelRij}>
+          <Pressable style={[s.tegel, s.tegelKramen]} onPress={() => router.push('/kramen')}>
+            <Text style={s.tegelIcon}>🎪</Text>
+            <Text style={s.tegelTitel}>Kramen</Text>
+            <Text style={s.tegelSub}>Volg je favorieten</Text>
+          </Pressable>
+          <Pressable style={[s.tegel, s.tegelTradities]} onPress={() => router.push('/tradities')}>
+            <Text style={s.tegelIcon}>🏆</Text>
+            <Text style={s.tegelTitel}>Tradities</Text>
+            <Text style={s.tegelSub}>Je jaarlijkse streaks</Text>
+          </Pressable>
+        </View>
 
         {pushOndersteund() && push !== 'aan' ? (
           <Pressable style={s.pushBalk} onPress={wisselPush} disabled={pushBezig}>
@@ -647,15 +651,13 @@ const s = StyleSheet.create({
   heroLijn: { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.35)' },
   heroNum: { color: '#fff', fontSize: 22, fontWeight: '900' },
   heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', marginTop: 2 },
-  gidsKaart: {
-    flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14,
-    backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)',
-    borderRadius: 16, padding: 16,
-  },
-  gidsIcon: { fontSize: 26 },
-  gidsTitel: { color: C.ink, fontSize: 15.5, fontWeight: '900' },
-  gidsSub: { color: C.muted, fontSize: 12.5, fontWeight: '600', marginTop: 2, lineHeight: 17 },
-  gidsChev: { color: C.violet, fontSize: 24, fontWeight: '700' },
+  tegelRij: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  tegel: { flex: 1, borderRadius: 16, padding: 16, borderWidth: 1 },
+  tegelKramen: { backgroundColor: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.25)' },
+  tegelTradities: { backgroundColor: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.30)' },
+  tegelIcon: { fontSize: 24 },
+  tegelTitel: { color: C.ink, fontSize: 15.5, fontWeight: '900', marginTop: 8 },
+  tegelSub: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
   chalKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16, flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
