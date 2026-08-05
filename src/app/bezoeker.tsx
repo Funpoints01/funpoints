@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KermisKalender } from '../components/KermisKalender'
 import { Vrienden } from '../components/Vrienden'
 import { BottomNav } from '../components/BottomNav'
+import { niveau } from '../lib/levels'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -162,6 +163,7 @@ function Home({ session }: { session: Session }) {
   const [isBez, setIsBez] = useState<boolean | null>(null)
   const [kramen, setKramen] = useState<Kraam[]>([])
   const [doelen, setDoelen] = useState<Record<string, { naam: string; punten: number }>>({})
+  const [checkins, setCheckins] = useState(0)
   const [kermissen, setKermissen] = useState<Kermis[]>([])
   const [acties, setActies] = useState<any[]>([])
   const [superAct, setSuperAct] = useState<any | null>(null)
@@ -266,7 +268,7 @@ function Home({ session }: { session: Session }) {
       setFGebruikersnaam(bez?.gebruikersnaam ?? '')
 
       const todayISO = new Date().toISOString().slice(0, 10)
-      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }, { data: sd }] = await Promise.all([
+      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }, { data: sd }, { data: inc }] = await Promise.all([
         supabase.from('attractie_publiek').select('id, naam, soort'),
         supabase.from('saldo').select('attractie_id, saldo'),
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
@@ -275,7 +277,9 @@ function Home({ session }: { session: Session }) {
         supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
         supabase.from('kraam_volger').select('attractie_id'),
         supabase.from('spaardoel').select('attractie_id, naam, punten'),
+        supabase.from('incheck').select('id'),
       ])
+      setCheckins((inc ?? []).length)
       const doelMap: Record<string, { naam: string; punten: number }> = {}
       ;(sd ?? []).forEach((r: any) => { doelMap[r.attractie_id] = { naam: r.naam, punten: r.punten } })
       setDoelen(doelMap)
@@ -367,11 +371,11 @@ function Home({ session }: { session: Session }) {
     )
   }
 
-  const challenges = [
-    { icon: '🎯', titel: 'Ontdekker', desc: 'Bezoek 3 verschillende kramen', nu: Math.min(stats.bezocht, 3), doel: 3, kleur: C.coral },
-    { icon: '⭐', titel: 'Spaarder', desc: 'Spaar 100 punten', nu: Math.min(stats.punten, 100), doel: 100, kleur: C.amber },
-    { icon: '🎡', titel: 'Avonturier', desc: 'Probeer een lunapark', nu: stats.lunapark ? 1 : 0, doel: 1, kleur: C.violet },
-  ]
+  const niveaus = [
+    { icon: '🎯', titel: 'Ontdekker', waarde: stats.bezocht, basis: [3, 5, 8, 12, 20], kleur: C.coral, eenheid: 'kramen' },
+    { icon: '⭐', titel: 'Spaarder', waarde: stats.punten, basis: [100, 250, 500, 1000], kleur: C.amber, eenheid: 'punten' },
+    { icon: '🎪', titel: 'Kermisganger', waarde: checkins, basis: [1, 3, 6, 10, 20], kleur: C.violet, eenheid: 'check-ins' },
+  ].map((t) => ({ ...t, ...niveau(t.waarde, t.basis) }))
   const voornaam = naam ? naam.split(' ')[0] : ''
   const gewoneActies = acties.filter((a: any) => a.id !== superAct?.id)
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 74 : insets.top + 60 }]
@@ -505,22 +509,24 @@ function Home({ session }: { session: Session }) {
           </>
         ) : null}
 
-        <Text style={s.sectie}>🏆 Challenges</Text>
+        <Text style={s.sectie}>🏅 Levels</Text>
         <View style={{ gap: 10 }}>
-          {challenges.map((c, i) => {
-            const klaar = c.nu >= c.doel
+          {niveaus.map((t, i) => {
+            const pct = Math.max(0, Math.min(1, (t.waarde - t.start) / (t.volgende - t.start)))
+            const resterend = Math.max(0, t.volgende - t.waarde)
             return (
               <View key={i} style={s.chalKaart}>
-                <Text style={s.chalIcon}>{c.icon}</Text>
+                <View style={[s.lvlIcon, { backgroundColor: t.kleur + '22' }]}><Text style={{ fontSize: 22 }}>{t.icon}</Text></View>
                 <View style={{ flex: 1 }}>
                   <View style={s.chalTop}>
-                    <Text style={s.chalTitel}>{c.titel}</Text>
-                    {klaar ? <Text style={s.chalKlaar}>✓ behaald</Text> : <Text style={s.chalNu}>{c.nu}/{c.doel}</Text>}
+                    <Text style={s.chalTitel}>{t.titel}</Text>
+                    <View style={[s.lvlBadge, { backgroundColor: t.kleur }]}><Text style={s.lvlBadgeT}>Level {t.level}</Text></View>
                   </View>
-                  <Text style={s.chalDesc}>{c.desc}</Text>
+                  <Text style={s.chalDesc}>Nog {resterend} {t.eenheid} tot level {t.level + 1}</Text>
                   <View style={s.balkBg}>
-                    <View style={[s.balkVul, { width: `${Math.round((c.nu / c.doel) * 100)}%`, backgroundColor: klaar ? C.green : c.kleur }]} />
+                    <View style={[s.balkVul, { width: `${Math.round(pct * 100)}%`, backgroundColor: t.kleur }]} />
                   </View>
+                  <Text style={s.lvlSub}>{t.waarde} / {t.volgende} {t.eenheid}</Text>
                 </View>
               </View>
             )
@@ -855,6 +861,10 @@ const s = StyleSheet.create({
   weekMeta: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 4 },
   chalKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16, flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   chalIcon: { fontSize: 26, marginTop: 2 },
+  lvlIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  lvlBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+  lvlBadgeT: { color: '#fff', fontSize: 11.5, fontWeight: '900' },
+  lvlSub: { color: C.muted, fontSize: 11.5, fontWeight: '700', marginTop: 6 },
   chalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chalTitel: { color: C.ink, fontSize: 15.5, fontWeight: '800' },
   chalNu: { color: C.muted, fontSize: 13, fontWeight: '700' },

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { niveau, KERMISGANGER } from '../lib/levels'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -159,7 +160,10 @@ export function Vrienden() {
               <View key={r.bezoeker_id} style={[s.rang, r.is_ik && s.rangIk]}>
                 <Text style={s.rangPos}>{MEDAILLE[i] ?? `${i + 1}`}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
+                  <View style={s.rangNaamRij}>
+                    <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
+                    <View style={s.lvlChip}><Text style={s.lvlChipT}>Lvl {niveau(Number(r.bezoeken), KERMISGANGER).level}</Text></View>
+                  </View>
                   <Text style={s.rangSub}>{r.bezoeken} check-ins · {r.kermissen} kermissen</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -240,8 +244,11 @@ const s = StyleSheet.create({
   rang: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 14 },
   rangIk: { borderColor: C.violet, borderWidth: 1.5, backgroundColor: 'rgba(139,92,246,0.06)' },
   rangPos: { fontSize: 18, fontWeight: '900', color: C.ink, width: 28, textAlign: 'center' },
+  rangNaamRij: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   rangNaam: { color: C.ink, fontSize: 15, fontWeight: '800' },
   rangNaamIk: { color: C.violetD },
+  lvlChip: { backgroundColor: 'rgba(139,92,246,0.14)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  lvlChipT: { color: C.violetD, fontSize: 10.5, fontWeight: '900' },
   rangSub: { color: C.muted, fontSize: 12, marginTop: 1 },
   rangGetal: { color: C.ink, fontSize: 19, fontWeight: '900' },
   rangLbl: { color: C.muted, fontSize: 10.5, fontWeight: '700' },
