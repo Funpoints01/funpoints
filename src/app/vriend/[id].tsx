@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
+import { BottomNav } from '../../components/BottomNav'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', ink: '#241B3A', muted: '#7A7290',
@@ -54,7 +55,7 @@ export default function VriendProfiel() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={wrapC}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>
@@ -97,6 +98,7 @@ export default function VriendProfiel() {
           </>
         )}
       </ScrollView>
+      <BottomNav />
     </View>
   )
 }

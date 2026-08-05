@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
+import { BottomNav } from '../components/BottomNav'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -136,7 +137,7 @@ export default function Kramen() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={wrapC}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
         <Text style={s.paginaTitel}>🎪 Kramen</Text>
 
@@ -183,6 +184,7 @@ export default function Kramen() {
           </View>
         )}
       </ScrollView>
+      <BottomNav />
     </View>
   )
 }

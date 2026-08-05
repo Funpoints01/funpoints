@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
 import Svg, { Path, Line, Circle, Polygon, Defs, LinearGradient, Stop } from 'react-native-svg'
 import { supabase } from '../../lib/supabase'
+import { BottomNav } from '../../components/BottomNav'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', ink: '#241B3A', muted: '#7A7290',
@@ -117,7 +118,7 @@ export default function KraamDetail() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView contentContainerStyle={wrapC}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>
@@ -186,6 +187,7 @@ export default function KraamDetail() {
               ))}
             </View>}
       </ScrollView>
+      <BottomNav />
     </View>
   )
 }

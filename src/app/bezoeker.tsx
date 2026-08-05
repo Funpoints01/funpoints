@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -11,6 +11,7 @@ import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KermisKalender } from '../components/KermisKalender'
 import { Vrienden } from '../components/Vrienden'
+import { BottomNav } from '../components/BottomNav'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -230,6 +231,12 @@ function Home({ session }: { session: Session }) {
   }, [])
   useFocusEffect(useCallback(() => { laadOngelezen() }, [laadOngelezen]))
 
+  const params = useLocalSearchParams<{ tab?: string }>()
+  useEffect(() => {
+    const t = params.tab ? String(params.tab) : ''
+    if (['home', 'kermissen', 'qr', 'saldo', 'social'].includes(t)) setTab(t as any)
+  }, [params.tab])
+
   async function wisselPush() {
     setPushBezig(true)
     if (push === 'aan') { await zetPushUit(); setPush('uit') }
@@ -362,7 +369,7 @@ function Home({ session }: { session: Session }) {
   ]
   const voornaam = naam ? naam.split(' ')[0] : ''
   const gewoneActies = acties.filter((a: any) => a.id !== superAct?.id)
-  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
+  const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 74 : insets.top + 60 }]
 
   return (
     <View style={s.scherm}>
@@ -669,21 +676,7 @@ function Home({ session }: { session: Session }) {
       </ScrollView>
       ) : null}
 
-      <View style={[s.tabBar, { paddingBottom: Platform.OS === 'web' ? 24 : Math.max(insets.bottom, 12) }]}>
-        {TABS.map((t) => t.key === 'qr' ? (
-          <Pressable key={t.key} style={s.tabMidWrap} onPress={() => setTab('qr')}>
-            <View style={[s.tabMid, tab === 'qr' && s.tabMidAan]}>
-              <Text style={s.tabMidIcon}>🎟️</Text>
-            </View>
-            <Text style={[s.tabLabel, tab === 'qr' && s.tabLabelAan]}>QR</Text>
-          </Pressable>
-        ) : (
-          <Pressable key={t.key} style={s.tabItem} onPress={() => setTab(t.key)}>
-            <Text style={[s.tabIcon, tab === t.key && s.tabIconAan]}>{t.icon}</Text>
-            <Text numberOfLines={1} style={[s.tabLabel, tab === t.key && s.tabLabelAan]}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <BottomNav active={tab === 'settings' ? undefined : tab} onSelect={(k) => setTab(k as any)} />
 
       {vActie ? (
         <View style={s.vOverlay}>
