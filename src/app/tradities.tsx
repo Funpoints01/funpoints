@@ -38,22 +38,32 @@ export default function Tradities() {
       setTotaalBezoeken((inc ?? []).length)
       if (!kermisIds.length) { setLaden(false); return }
 
-      const { data: kerm } = await supabase.from('kermis').select('id, naam, plaats, van').in('id', kermisIds)
+      const { data: kerm } = await supabase.from('kermis').select('id, reeks_id, naam, plaats, van').in('id', kermisIds)
       const kMap = new Map<string, any>((kerm ?? []).map((k: any) => [k.id, k]))
 
-      // Groepeer per plaats (of naam) — een traditie is "elk jaar naar dezelfde kermis".
+      // Haal de reeks-namen op (de blijvende kermis over de jaren heen).
+      const reeksIds = [...new Set((kerm ?? []).map((k: any) => k.reeks_id).filter(Boolean))]
+      const { data: reeks } = reeksIds.length
+        ? await supabase.from('kermis_reeks').select('id, naam, plaats').in('id', reeksIds)
+        : { data: [] as any[] }
+      const rMap = new Map<string, any>((reeks ?? []).map((r: any) => [r.id, r]))
+
+      // Groepeer per reeks — een traditie is "elk jaar naar dezelfde kermis".
       const groepen = new Map<string, { naam: string; plaats: string | null; jaren: Set<number>; bezoeken: number }>()
       ;(inc ?? []).forEach((r: any) => {
         const k = kMap.get(r.kermis_id)
         if (!k) return
-        const key = (k.plaats || k.naam || '').trim().toLowerCase()
+        const rk = k.reeks_id ? rMap.get(k.reeks_id) : null
+        const key = k.reeks_id ?? `n:${(k.plaats || k.naam || '').trim().toLowerCase()}`
         if (!key) return
+        const naam = rk?.naam ?? k.naam
+        const plaats = rk?.plaats ?? k.plaats
         const jaar = parseInt(String(k.van).slice(0, 4), 10)
-        const g = groepen.get(key) ?? { naam: k.naam, plaats: k.plaats, jaren: new Set<number>(), bezoeken: 0 }
+        const g = groepen.get(key) ?? { naam, plaats, jaren: new Set<number>(), bezoeken: 0 }
         g.jaren.add(jaar)
         g.bezoeken += 1
-        // Bewaar de meest recente naam
-        g.naam = k.naam
+        g.naam = naam
+        g.plaats = plaats
         groepen.set(key, g)
       })
 
