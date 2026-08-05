@@ -161,6 +161,7 @@ function Home({ session }: { session: Session }) {
   const [code, setCode] = useState<string | null>(null)
   const [isBez, setIsBez] = useState<boolean | null>(null)
   const [kramen, setKramen] = useState<Kraam[]>([])
+  const [doelen, setDoelen] = useState<Record<string, { naam: string; punten: number }>>({})
   const [kermissen, setKermissen] = useState<Kermis[]>([])
   const [acties, setActies] = useState<any[]>([])
   const [superAct, setSuperAct] = useState<any | null>(null)
@@ -265,7 +266,7 @@ function Home({ session }: { session: Session }) {
       setFGebruikersnaam(bez?.gebruikersnaam ?? '')
 
       const todayISO = new Date().toISOString().slice(0, 10)
-      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }] = await Promise.all([
+      const [{ data: att }, { data: sal }, { data: boek }, { data: kerm }, { data: ka }, { data: act }, { data: volg }, { data: sd }] = await Promise.all([
         supabase.from('attractie_publiek').select('id, naam, soort'),
         supabase.from('saldo').select('attractie_id, saldo'),
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
@@ -273,7 +274,11 @@ function Home({ session }: { session: Session }) {
         supabase.from('kermis_attractie').select('kermis_id, attractie_id'),
         supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
         supabase.from('kraam_volger').select('attractie_id'),
+        supabase.from('spaardoel').select('attractie_id, naam, punten'),
       ])
+      const doelMap: Record<string, { naam: string; punten: number }> = {}
+      ;(sd ?? []).forEach((r: any) => { doelMap[r.attractie_id] = { naam: r.naam, punten: r.punten } })
+      setDoelen(doelMap)
 
       const { data: ss } = await supabase.rpc('actieve_superster')
       setSuperAct(ss ?? null)
@@ -565,6 +570,14 @@ function Home({ session }: { session: Session }) {
                       <Text style={s.saldoLbl}>punten</Text>
                     </View>
                   </View>
+                  {doelen[k.id] ? (
+                    <View style={s.doelMini}>
+                      <Text style={s.doelMiniT}>🎯 {doelen[k.id].naam} · {Math.min(100, Math.round(k.saldo / doelen[k.id].punten * 100))}%</Text>
+                      <View style={s.doelMiniBg}>
+                        <View style={[s.doelMiniVul, { width: `${Math.min(100, Math.round(k.saldo / doelen[k.id].punten * 100))}%` }]} />
+                      </View>
+                    </View>
+                  ) : null}
                   <View style={s.detailLink}>
                     <Text style={s.detailLinkT}>🎁 Bekijk je prijs-voortgang ›</Text>
                   </View>
@@ -859,6 +872,10 @@ const s = StyleSheet.create({
   kermChev: { color: C.coral, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
   detailLink: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
   detailLinkT: { color: C.coral, fontSize: 13.5, fontWeight: '700' },
+  doelMini: { marginTop: 12 },
+  doelMiniT: { color: C.ink, fontSize: 12.5, fontWeight: '800', marginBottom: 6 },
+  doelMiniBg: { height: 8, backgroundColor: C.veld, borderRadius: 999, overflow: 'hidden' },
+  doelMiniVul: { height: 8, borderRadius: 999, backgroundColor: C.amber },
 
   kraart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16 },
   kraartRij: { flexDirection: 'row', alignItems: 'center' },

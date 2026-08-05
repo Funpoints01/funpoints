@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
@@ -69,6 +69,12 @@ export default function KraamDetail() {
   const [toonQr, setToonQr] = useState(false)
   const [volgt, setVolgt] = useState(false)
   const [volgBezig, setVolgBezig] = useState(false)
+  const [doel, setDoel] = useState<{ naam: string; punten: number } | null>(null)
+  const [doelVorm, setDoelVorm] = useState(false)
+  const [dNaam, setDNaam] = useState('')
+  const [dPunten, setDPunten] = useState('')
+  const [dBezig, setDBezig] = useState(false)
+  const [dFout, setDFout] = useState('')
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
@@ -95,6 +101,8 @@ export default function KraamDetail() {
           setSaldo((sal ?? []).reduce((t: number, r: any) => t + (r.saldo ?? 0), 0))
           const { data: v } = await supabase.from('kraam_volger').select('attractie_id').eq('attractie_id', id).maybeSingle()
           setVolgt(!!v)
+          const { data: sd } = await supabase.from('spaardoel').select('naam, punten').eq('attractie_id', id).maybeSingle()
+          setDoel(sd ?? null)
         }
       }
       setLaden(false)
@@ -106,6 +114,21 @@ export default function KraamDetail() {
     setVolgt(next); setVolgBezig(true)
     await supabase.rpc('zet_kraam_volg', { p_attractie_id: id, p_volg: next })
     setVolgBezig(false)
+  }
+
+  async function bewaarDoel() {
+    const n = dNaam.trim(); const p = parseInt(dPunten, 10)
+    if (!n) { setDFout('Geef je spaardoel een naam.'); return }
+    if (!p || p <= 0) { setDFout('Geef een geldig aantal punten.'); return }
+    setDBezig(true); setDFout('')
+    const { error } = await supabase.rpc('zet_spaardoel', { p_attractie_id: id, p_naam: n, p_punten: p })
+    setDBezig(false)
+    if (error) { setDFout('Opslaan mislukt. Probeer opnieuw.'); return }
+    setDoel({ naam: n, punten: p }); setDoelVorm(false)
+  }
+  async function wisDoel() {
+    setDoel(null); setDoelVorm(false)
+    await supabase.rpc('wis_spaardoel', { p_attractie_id: id })
   }
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.coral} size="large" /></View>
@@ -161,6 +184,47 @@ export default function KraamDetail() {
               <Text style={s.prijsKop}>🎁 Hoofdprijs</Text>
               <Text style={s.prijsPlaceholder}>Dit kraam heeft nog geen hoofdprijs ingesteld. Kom later terug!</Text>
             </View>
+          )
+        ) : null}
+
+        {code !== null ? (
+          doel && !doelVorm ? (
+            <View style={s.prijsKaart}>
+              <Text style={s.prijsKop}>🎯 Mijn spaardoel</Text>
+              <Meter p={(saldo ?? 0) / doel.punten} />
+              <Text style={s.meterPct}>{Math.round(Math.min(1, (saldo ?? 0) / doel.punten) * 100)}%</Text>
+              <Text style={s.meterSub}>{saldo ?? 0} / {doel.punten} punten</Text>
+              <Text style={s.prijsNaam}>{doel.naam}</Text>
+              {(saldo ?? 0) >= doel.punten
+                ? <Text style={s.prijsKlaar}>🎉 Je spaardoel is bereikt!</Text>
+                : <Text style={s.prijsRest}>Nog {doel.punten - (saldo ?? 0)} punten te gaan</Text>}
+              <View style={s.doelKnoppen}>
+                <Pressable onPress={() => { setDNaam(doel.naam); setDPunten(String(doel.punten)); setDFout(''); setDoelVorm(true) }}>
+                  <Text style={s.doelLink}>Wijzigen</Text>
+                </Pressable>
+                <Pressable onPress={wisDoel}><Text style={[s.doelLink, { color: C.muted }]}>Wissen</Text></Pressable>
+              </View>
+            </View>
+          ) : doelVorm ? (
+            <View style={s.prijsKaart}>
+              <Text style={s.prijsKop}>🎯 Eigen spaardoel</Text>
+              <Text style={s.doelUitleg}>Spaar naar iets van jouw keuze bij dit kraam. Geef een naam en hoeveel punten het kost.</Text>
+              <TextInput style={s.doelInput} value={dNaam} onChangeText={setDNaam}
+                placeholder="bv. Fotokader" placeholderTextColor={C.muted} />
+              <TextInput style={[s.doelInput, { marginTop: 10 }]} value={dPunten} onChangeText={setDPunten}
+                keyboardType="number-pad" placeholder="bv. 400 punten" placeholderTextColor={C.muted} />
+              {dFout ? <Text style={s.doelFout}>{dFout}</Text> : null}
+              <Pressable onPress={bewaarDoel} disabled={dBezig} style={[s.doelKnop, dBezig && { opacity: 0.5 }]}>
+                {dBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.doelKnopT}>Opslaan</Text>}
+              </Pressable>
+              <Pressable onPress={() => setDoelVorm(false)} style={{ marginTop: 10 }}>
+                <Text style={[s.doelLink, { color: C.muted, textAlign: 'center' }]}>Annuleren</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => { setDNaam(''); setDPunten(''); setDFout(''); setDoelVorm(true) }} style={s.doelToevoeg}>
+              <Text style={s.doelToevoegT}>🎯 Eigen spaardoel toevoegen</Text>
+            </Pressable>
           )
         ) : null}
 
@@ -226,6 +290,15 @@ const s = StyleSheet.create({
   prijsRest: { color: C.muted, fontSize: 13.5, fontWeight: '600', marginTop: 6 },
   prijsKlaar: { color: C.green, fontSize: 14, fontWeight: '800', marginTop: 6, textAlign: 'center' },
   prijsPlaceholder: { color: C.muted, fontSize: 14, textAlign: 'center', lineHeight: 20, marginTop: 4 },
+  doelKnoppen: { flexDirection: 'row', gap: 22, marginTop: 14 },
+  doelLink: { color: C.coralD, fontSize: 13.5, fontWeight: '800' },
+  doelUitleg: { color: C.muted, fontSize: 13, textAlign: 'center', lineHeight: 19, marginTop: 4, marginBottom: 14 },
+  doelInput: { alignSelf: 'stretch', backgroundColor: '#F4F1FA', borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13 },
+  doelFout: { color: '#E11D48', fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
+  doelKnop: { alignSelf: 'stretch', backgroundColor: C.coral, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+  doelKnopT: { color: '#fff', fontWeight: '800', fontSize: 15.5 },
+  doelToevoeg: { backgroundColor: 'rgba(251,113,133,0.10)', borderWidth: 1, borderColor: 'rgba(251,113,133,0.3)', borderRadius: 16, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
+  doelToevoegT: { color: C.coralD, fontWeight: '800', fontSize: 14.5 },
   qrVak: { alignItems: 'center', backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 20, marginTop: 12 },
   qrWit: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line },
   qrHint: { color: C.muted, fontSize: 12.5, marginTop: 12, textAlign: 'center' },
