@@ -20,6 +20,8 @@ export default function KermisDetail() {
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   const [kermis, setKermis] = useState<any>(null)
   const [kramen, setKramen] = useState<Attr[]>([])
+  const [volgSet, setVolgSet] = useState<Set<string>>(new Set())
+  const [isBez, setIsBez] = useState(false)
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
@@ -30,9 +32,30 @@ export default function KermisDetail() {
       const ids = new Set((ka ?? []).map((r: any) => r.attractie_id))
       const { data: att } = await supabase.from('attractie_publiek').select('id, naam, soort')
       setKramen((att ?? []).filter((a: any) => ids.has(a.id)) as Attr[])
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: bez } = await supabase.from('bezoeker').select('id').eq('auth_user_id', session.user.id).maybeSingle()
+        if (bez) {
+          setIsBez(true)
+          const { data: v } = await supabase.from('kraam_volger').select('attractie_id')
+          setVolgSet(new Set((v ?? []).map((r: any) => r.attractie_id)))
+        }
+      }
       setLaden(false)
     })()
   }, [id])
+
+  async function wisselVolg(attractieId: string) {
+    const isVolg = volgSet.has(attractieId)
+    const next = !isVolg
+    setVolgSet((prev) => {
+      const n = new Set(prev)
+      if (next) n.add(attractieId); else n.delete(attractieId)
+      return n
+    })
+    await supabase.rpc('zet_kraam_volg', { p_attractie_id: attractieId, p_volg: next })
+  }
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.coral} size="large" /></View>
   if (!kermis) return (
@@ -45,7 +68,7 @@ export default function KermisDetail() {
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={wrapC}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>
           <Text style={s.heroEmoji}>🎪</Text>
@@ -58,16 +81,24 @@ export default function KermisDetail() {
         {kramen.length === 0
           ? <View style={s.leeg}><Text style={s.sub}>Nog geen kramen aangekondigd.</Text></View>
           : <View style={{ gap: 10 }}>
-              {kramen.map((a) => (
-                <Pressable key={a.id} style={s.rij} onPress={() => router.push(`/kraam/${a.id}`)}>
-                  <View style={s.rijIcon}><Text style={{ fontSize: 22 }}>{EMOJI[a.soort] ?? '🎪'}</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.rijNaam}>{a.naam}</Text>
-                    <Text style={s.rijSub}>{a.soort}</Text>
-                  </View>
-                  <Text style={s.chevron}>›</Text>
-                </Pressable>
-              ))}
+              {kramen.map((a) => {
+                const volgt = volgSet.has(a.id)
+                return (
+                  <Pressable key={a.id} style={s.rij} onPress={() => router.push(`/kraam/${a.id}`)}>
+                    <View style={s.rijIcon}><Text style={{ fontSize: 22 }}>{EMOJI[a.soort] ?? '🎪'}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rijNaam}>{a.naam}</Text>
+                      <Text style={s.rijSub}>{a.soort}</Text>
+                    </View>
+                    {isBez ? (
+                      <Pressable onPress={() => wisselVolg(a.id)} hitSlop={10} style={[s.hart, volgt && s.hartAan]}>
+                        <Text style={s.hartT}>{volgt ? '❤️' : '🤍'}</Text>
+                      </Pressable>
+                    ) : null}
+                    <Text style={s.chevron}>›</Text>
+                  </Pressable>
+                )
+              })}
             </View>}
       </ScrollView>
     </View>
@@ -95,5 +126,8 @@ const s = StyleSheet.create({
   rijIcon: { width: 46, height: 46, borderRadius: 13, backgroundColor: 'rgba(251,113,133,0.14)', alignItems: 'center', justifyContent: 'center' },
   rijNaam: { color: C.ink, fontSize: 16, fontWeight: '800' },
   rijSub: { color: C.muted, fontSize: 12.5, marginTop: 2 },
+  hart: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+  hartAan: { backgroundColor: 'rgba(251,113,133,0.14)' },
+  hartT: { fontSize: 18 },
   chevron: { color: C.coral, fontSize: 26, fontWeight: '700' },
 })

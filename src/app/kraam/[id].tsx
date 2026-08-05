@@ -66,6 +66,8 @@ export default function KraamDetail() {
   const [code, setCode] = useState<string | null>(null)
   const [saldo, setSaldo] = useState<number | null>(null)
   const [toonQr, setToonQr] = useState(false)
+  const [volgt, setVolgt] = useState(false)
+  const [volgBezig, setVolgBezig] = useState(false)
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
@@ -90,11 +92,20 @@ export default function KraamDetail() {
           setCode(bez.code)
           const { data: sal } = await supabase.from('saldo').select('saldo').eq('attractie_id', id)
           setSaldo((sal ?? []).reduce((t: number, r: any) => t + (r.saldo ?? 0), 0))
+          const { data: v } = await supabase.from('kraam_volger').select('attractie_id').eq('attractie_id', id).maybeSingle()
+          setVolgt(!!v)
         }
       }
       setLaden(false)
     })()
   }, [id])
+
+  async function wisselVolg() {
+    const next = !volgt
+    setVolgt(next); setVolgBezig(true)
+    await supabase.rpc('zet_kraam_volg', { p_attractie_id: id, p_volg: next })
+    setVolgBezig(false)
+  }
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.coral} size="large" /></View>
   if (!attr) return (
@@ -113,6 +124,11 @@ export default function KraamDetail() {
           <Text style={s.heroEmoji}>{EMOJI[attr.soort] ?? '🎪'}</Text>
           <Text style={s.heroTitel}>{attr.naam}</Text>
           <Text style={s.heroSub}>{attr.soort}</Text>
+          {code !== null ? (
+            <Pressable onPress={wisselVolg} disabled={volgBezig} style={[s.volgKnop, volgt && s.volgKnopAan]}>
+              <Text style={[s.volgKnopT, volgt && s.volgKnopTAan]}>{volgt ? '❤️ Je volgt dit kraam' : '🤍 Volg dit kraam'}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {code !== null ? (
@@ -187,6 +203,10 @@ const s = StyleSheet.create({
   heroEmoji: { fontSize: 44 },
   heroTitel: { color: '#fff', fontSize: 24, fontWeight: '900', marginTop: 8, textAlign: 'center' },
   heroSub: { color: 'rgba(255,255,255,0.92)', fontSize: 14.5, fontWeight: '600', marginTop: 4 },
+  volgKnop: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  volgKnopAan: { backgroundColor: '#fff' },
+  volgKnopT: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  volgKnopTAan: { color: C.coralD },
   saldoKaart: {
     backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 18,
     marginTop: 16, flexDirection: 'row', alignItems: 'center',

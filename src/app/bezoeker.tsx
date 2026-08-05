@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { KermisKalender } from '../components/KermisKalender'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -369,24 +370,7 @@ function Home({ session }: { session: Session }) {
 
       {tab === 'kermissen' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>🎡 Kermissen</Text>
-        {kermissen.length === 0
-          ? <View style={s.leeg}><Text style={s.sub}>Nog geen kermissen gepland.</Text></View>
-          : <View style={{ gap: 10 }}>
-              {kermissen.map((k) => (
-                <Pressable key={k.id} style={s.kermKaart} onPress={() => router.push(`/kermis/${k.id}`)}>
-                  <View style={s.kermIcon}><Text style={{ fontSize: 22 }}>🎡</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.kermNaam}>{k.naam}</Text>
-                    <Text style={s.kermSub}>{k.plaats} · {kort(k.van)} – {kort(k.tot)}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={s.kermKramen}>{k.kramen} kramen</Text>
-                    <Text style={s.kermChev}>bekijk ›</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>}
+        <KermisKalender postcode={fPostcode} />
       </ScrollView>
       ) : null}
 
