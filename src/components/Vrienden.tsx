@@ -192,7 +192,7 @@ const s = StyleSheet.create({
   blokTitel: { color: C.ink, fontSize: 16, fontWeight: '900' },
   blokSub: { color: C.muted, fontSize: 12.5, marginTop: 3, marginBottom: 12 },
   zoekRij: { flexDirection: 'row', gap: 8 },
-  input: { flex: 1, backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 15, paddingHorizontal: 14, paddingVertical: 12 },
+  input: { flex: 1, backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
   zoekKnop: { backgroundColor: C.violet, borderRadius: 12, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   zoekKnopT: { color: '#fff', fontWeight: '800', fontSize: 14 },
   uit: { opacity: 0.5 },
