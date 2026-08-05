@@ -124,10 +124,10 @@ function streakVan(dagen: Set<string>): number {
 
 const TABS = [
   { key: 'home', icon: '🏠', label: 'Home' },
-  { key: 'kermissen', icon: '🎡', label: 'Kermissen' },
+  { key: 'kermissen', icon: '📅', label: 'Kermissen' },
   { key: 'qr', icon: '🎟️', label: 'QR' },
   { key: 'saldo', icon: '⭐', label: 'Saldo' },
-  { key: 'settings', icon: '👤', label: 'Account' },
+  { key: 'social', icon: '👥', label: 'Vrienden' },
 ] as const
 
 function SupersterBanner({ actie, onPress }: { actie: any; onPress: () => void }) {
@@ -174,7 +174,7 @@ function Home({ session }: { session: Session }) {
   const [vLaden, setVLaden] = useState(false)
   const [push, setPush] = useState<PushStatus>('niet')
   const [pushBezig, setPushBezig] = useState(false)
-  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('home')
+  const [tab, setTab] = useState<(typeof TABS)[number]['key'] | 'settings'>('home')
   const insets = useSafeAreaInsets()
   const [bezId, setBezId] = useState<string | null>(null)
   const [fNaam, setFNaam] = useState('')
@@ -336,24 +336,30 @@ function Home({ session }: { session: Session }) {
     { icon: '🎡', titel: 'Avonturier', desc: 'Probeer een lunapark', nu: stats.lunapark ? 1 : 0, doel: 1, kleur: C.violet },
   ]
   const voornaam = naam ? naam.split(' ')[0] : ''
+  const gewoneActies = acties.filter((a: any) => a.id !== superAct?.id)
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
 
   return (
     <View style={s.scherm}>
+      <Pressable
+        style={[s.radKnop, { top: Platform.OS === 'web' ? 14 : insets.top + 4 }]}
+        onPress={() => setTab(tab === 'settings' ? 'home' : 'settings')} hitSlop={8}>
+        <Text style={s.radKnopT}>{tab === 'settings' ? '🏠' : '🎡'}</Text>
+      </Pressable>
+
       {tab === 'home' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <View style={s.topbar}>
-          <Logo />
-        </View>
-
         <View style={s.hero}>
+          <View style={s.heroDeco} />
+          <View style={s.heroDeco2} />
           <Text style={s.heroHi}>Hallo{voornaam ? `, ${voornaam}` : ''} 👋</Text>
+          <Text style={s.heroTag}>Klaar voor wat kermisplezier?</Text>
           <View style={s.heroStats}>
-            <View style={s.heroStat}><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>bezocht</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>🎪</Text><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>bezocht</Text></View>
             <View style={s.heroLijn} />
-            <View style={s.heroStat}><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>⭐</Text><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten</Text></View>
             <View style={s.heroLijn} />
-            <View style={s.heroStat}><Text style={s.heroNum}>{gevolgdAantal}</Text><Text style={s.heroSub}>gevolgd</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>❤️</Text><Text style={s.heroNum}>{gevolgdAantal}</Text><Text style={s.heroSub}>gevolgd</Text></View>
           </View>
         </View>
 
@@ -429,18 +435,18 @@ function Home({ session }: { session: Session }) {
           </>
         ) : null}
 
-        {acties.length > 0 ? (
+        {gewoneActies.length > 0 ? (
           <>
             <Text style={s.sectie}>🔥 Acties & deals</Text>
             <View style={{ gap: 10 }}>
-              {acties.map((a) => (
+              {gewoneActies.map((a) => (
                 <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]}
                   onPress={() => a.eenmalig ? toonVoucher(a) : router.push(`/kraam/${a.attractie_id}`)}>
                   {a.geboost ? <Text style={s.uitgelicht}>⭐ UITGELICHT</Text> : null}
                   <View style={s.actieBinnen}>
                     <View style={{ flex: 1 }}>
+                      <View style={s.kraamChip}><Text style={s.kraamChipT}>🎪 {a.kraam}</Text></View>
                       <Text style={s.actieTitel}>{a.titel}</Text>
-                      <Text style={s.actieKraam}>{a.kraam}</Text>
                       {a.beschrijving ? <Text style={s.actieDesc}>{a.beschrijving}</Text> : null}
                       {a.eenmalig ? <Text style={s.voucherTag}>🎟️ Tik om je voucher op te halen</Text> : null}
                     </View>
@@ -619,6 +625,20 @@ function Home({ session }: { session: Session }) {
       </ScrollView>
       ) : null}
 
+      {tab === 'social' ? (
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
+        <Text style={s.paginaTitel}>👥 Vrienden</Text>
+        <View style={s.binnenkort}>
+          <Text style={s.binnenkortIcon}>🎢</Text>
+          <Text style={s.binnenkortT}>Binnenkort</Text>
+          <Text style={s.binnenkortSub}>
+            Zoek vrienden via hun e-mail, vergelijk jullie streaks en klim samen in de leaderboards.
+            Dit onderdeel komt er zo aan!
+          </Text>
+        </View>
+      </ScrollView>
+      ) : null}
+
       <View style={[s.tabBar, { paddingBottom: Platform.OS === 'web' ? 24 : Math.max(insets.bottom, 12) }]}>
         {TABS.map((t) => t.key === 'qr' ? (
           <Pressable key={t.key} style={s.tabMidWrap} onPress={() => setTab('qr')}>
@@ -738,10 +758,14 @@ const s = StyleSheet.create({
   foutT: { color: C.red, fontSize: 14, fontWeight: '600', textAlign: 'center' },
 
   hero: {
-    backgroundColor: C.coral, borderRadius: 22, padding: 22, marginTop: 8,
+    backgroundColor: C.coral, borderRadius: 22, padding: 22, marginTop: 4, overflow: 'hidden',
     shadowColor: C.coral, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4,
   },
-  heroHi: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  heroDeco: { position: 'absolute', top: -40, right: -30, width: 130, height: 130, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' },
+  heroDeco2: { position: 'absolute', bottom: -50, left: -25, width: 110, height: 110, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroHi: { color: '#fff', fontSize: 23, fontWeight: '900' },
+  heroTag: { color: 'rgba(255,255,255,0.92)', fontSize: 13.5, fontWeight: '600', marginTop: 3 },
+  heroStatIcon: { fontSize: 16, marginBottom: 2 },
   streakRij: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 12 },
   streakBig: { color: '#fff', fontSize: 40, fontWeight: '900' },
   streakLbl: { color: 'rgba(255,255,255,0.9)', fontSize: 15, fontWeight: '700' },
@@ -757,6 +781,18 @@ const s = StyleSheet.create({
   tegelIcon: { fontSize: 24 },
   tegelTitel: { color: C.ink, fontSize: 15.5, fontWeight: '900', marginTop: 8 },
   tegelSub: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  radKnop: {
+    position: 'absolute', right: 18, zIndex: 30, width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line,
+    shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+  },
+  radKnopT: { fontSize: 20 },
+  kraamChip: { alignSelf: 'flex-start', backgroundColor: 'rgba(251,113,133,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 6 },
+  kraamChipT: { color: C.coralD, fontSize: 12, fontWeight: '800' },
+  binnenkort: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 26, alignItems: 'center', marginTop: 4 },
+  binnenkortIcon: { fontSize: 44 },
+  binnenkortT: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 10 },
+  binnenkortSub: { color: C.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginTop: 8 },
 
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
   favKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(251,113,133,0.4)', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
