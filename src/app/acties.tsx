@@ -29,6 +29,8 @@ function naarISO(sv: string): string | null {
 }
 function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); return `${d}-${m}-${j}` }
 function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
+function isSuperster(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
+const SS_UREN = [4, 8, 12]
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 // --- Regio-targeting (interim: provincie-niveau) ---
@@ -76,7 +78,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster: boolean }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null }
 
 export default function Acties() {
   const router = useRouter()
@@ -90,7 +92,12 @@ export default function Acties() {
   const [titel, setTitel] = useState('')
   const [beschrijving, setBeschrijving] = useState('')
   const [eenmalig, setEenmalig] = useState(false)
-  const [superster, setSuperster] = useState(false)
+  const [ssVoor, setSsVoor] = useState<string | null>(null)
+  const [ssUren, setSsUren] = useState(4)
+  const [ssPc, setSsPc] = useState('')
+  const [ssNiveau, setSsNiveau] = useState(0)
+  const [ssBezig, setSsBezig] = useState(false)
+  const [ssMelding, setSsMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [soort, setSoort] = useState('promo')
   const [pct, setPct] = useState('')
   const [van, setVan] = useState('')
@@ -122,6 +129,21 @@ export default function Acties() {
   function openCampagne(actieId: string) {
     setCampVoor(actieId); setCampMelding(null); setCampNiveau(0); setTelling(null)
     telDoelgroep(campPc, 0)
+  }
+
+  async function activeerSuperster(actieId: string) {
+    const provs = provinciesVoor(ssPc, ssNiveau)
+    if (!provs) { setSsMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
+    setSsBezig(true); setSsMelding(null)
+    const { data, error } = await supabase.rpc('activeer_superster', { p_actie_id: actieId, p_uren: ssUren, p_provincies: provs })
+    setSsBezig(false)
+    if (error) {
+      setSsMelding({ ok: false, tekst: error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits.' : 'Activeren mislukt.' })
+      return
+    }
+    setCredits((data as any).credits)
+    setSsMelding({ ok: true, tekst: `⭐ Superster actief voor ${ssUren} uur!` })
+    herlaad()
   }
 
   async function verstuurCampagne(actieId: string) {
@@ -160,7 +182,7 @@ export default function Acties() {
     const [{ data: u }, { data: att }, { data: act }] = await Promise.all([
       supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
-      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster').order('van'),
+      supabase.from('actie').select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies').order('van'),
     ])
     setCredits(u?.credits ?? 0)
     const lijst = (att ?? []) as Attr[]
@@ -183,11 +205,11 @@ export default function Acties() {
     setBezig(true)
     const { error } = await supabase.from('actie').insert({
       attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
-      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig, superster,
+      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig,
     })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
-    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false); setSuperster(false)
+    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     herlaad()
   }
 
@@ -287,16 +309,6 @@ export default function Acties() {
               ) : null}
             </>
           )}
-          <Pressable onPress={() => setSuperster(!superster)} style={[s.superRij, superster && s.superRijAan]}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.superT}>⭐ Superster-actie</Text>
-              <Text style={s.superSub}>Springt bovenaan in een opvallende, bewegende banner bij de bezoeker.</Text>
-            </View>
-            <View style={[s.switchTr, superster && s.switchTrAan]}>
-              <View style={[s.switchDot, superster && s.switchDotAan]} />
-            </View>
-          </Pressable>
-
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
@@ -322,7 +334,7 @@ export default function Acties() {
                 <View style={{ flex: 1 }}>
                   <View style={s.actieTop}>
                     <Text style={s.actieTitel}>{a.titel}</Text>
-                    {a.superster ? <Text style={s.superBadge}>⭐ superster</Text> : null}
+                    {isSuperster(a.superster_tot) ? <Text style={s.superBadge}>⭐ superster</Text> : null}
                     {a.eenmalig ? <Text style={s.voucherBadge}>🎟️ voucher</Text> : null}
                     {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ tot {boostTot(a.boost_tot!)}</Text> : null}
                   </View>
@@ -355,6 +367,63 @@ export default function Acties() {
               ) : (
                 <Pressable onPress={() => { setBoostVoor(a.id); setBoostFout('') }} style={s.boostKnop}>
                   <Text style={s.boostKnopT}>⭐ {isGeboost(a.boost_tot) ? 'Uitlichting verlengen' : 'Boost deze actie'}</Text>
+                </Pressable>
+              )}
+
+              {ssVoor === a.id ? (
+                <View style={s.ssVak}>
+                  <Text style={s.campKop}>⭐ Superster-banner activeren</Text>
+                  <Text style={s.campUitleg}>
+                    Je actie springt bovenaan bij je doelgroep in het oog met een bewegende banner.
+                    Kies de duur en de regio. Kost 10 credits per uur.
+                  </Text>
+
+                  <Text style={[s.label, { marginTop: 12 }]}>Hoelang</Text>
+                  <View style={s.ssUrenRij}>
+                    {SS_UREN.map((u) => (
+                      <Pressable key={u} onPress={() => setSsUren(u)}
+                        style={[s.ssUur, ssUren === u && s.ssUurAan]}>
+                        <Text style={[s.ssUurT, ssUren === u && s.ssUurTAan]}>{u} uur</Text>
+                        <Text style={[s.ssUurC, ssUren === u && s.ssUurCAan]}>{u * 10} credits</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Text style={[s.label, { marginTop: 14 }]}>Postcode (middelpunt)</Text>
+                  <TextInput style={s.input} value={ssPc} onChangeText={setSsPc}
+                    keyboardType="number-pad" maxLength={4}
+                    placeholder="bv. 8531" placeholderTextColor={C.muted} />
+                  {provVan(ssPc) ? <Text style={s.campProv}>Regio rond {PROV[provVan(ssPc)!]}</Text> : null}
+
+                  <Text style={[s.label, { marginTop: 14 }]}>Bereik</Text>
+                  <View style={s.balk}>
+                    {NIVEAUS.map((lbl, i) => (
+                      <Pressable key={i} onPress={() => setSsNiveau(i)}
+                        style={[s.balkSeg, i <= ssNiveau && s.balkSegAan]}>
+                        <Text style={[s.balkSegT, i <= ssNiveau && s.balkSegTAan]}>{lbl}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {ssMelding ? (
+                    <View style={[s.foutBox, ssMelding.ok && s.okBox]}>
+                      <Text style={[s.foutT, ssMelding.ok && s.okT]}>{ssMelding.tekst}</Text>
+                    </View>
+                  ) : null}
+
+                  <Pressable onPress={() => activeerSuperster(a.id)} disabled={ssBezig || !provinciesVoor(ssPc, ssNiveau)}
+                    style={[s.knop, s.knopSuper, { marginTop: 14 }, (ssBezig || !provinciesVoor(ssPc, ssNiveau)) && s.knopUit]}>
+                    {ssBezig
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={s.knopSuperT}>⭐ Activeer · {ssUren * 10} credits</Text>}
+                  </Pressable>
+                  <Pressable onPress={() => { setSsVoor(null); setSsMelding(null) }} style={{ marginTop: 10 }}>
+                    <Text style={s.annuleer}>Sluiten</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable onPress={() => { setSsVoor(a.id); setSsMelding(null) }} style={s.ssKnop}>
+                  <Text style={s.ssKnopT}>⭐ {isSuperster(a.superster_tot) ? 'Superster verlengen' : 'Superster activeren'}</Text>
                 </Pressable>
               )}
 
@@ -462,14 +531,18 @@ const s = StyleSheet.create({
   boostBadge: { color: C.amber, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   voucherBadge: { color: C.green, fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(16,185,129,0.14)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   superBadge: { color: '#B45309', fontSize: 11.5, fontWeight: '800', backgroundColor: 'rgba(245,158,11,0.18)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
-  superRij: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, backgroundColor: C.veld, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14 },
-  superRijAan: { backgroundColor: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.35)' },
-  superT: { color: C.ink, fontSize: 14.5, fontWeight: '800' },
-  superSub: { color: C.muted, fontSize: 12.5, marginTop: 3, lineHeight: 17 },
-  switchTr: { width: 46, height: 28, borderRadius: 999, backgroundColor: '#d9d4e4', padding: 3, justifyContent: 'center' },
-  switchTrAan: { backgroundColor: C.amber },
-  switchDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
-  switchDotAan: { alignSelf: 'flex-end' },
+  ssKnop: { marginTop: 10, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  ssKnopT: { color: '#B45309', fontWeight: '800', fontSize: 14 },
+  ssVak: { marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.line },
+  ssUrenRij: { flexDirection: 'row', gap: 8 },
+  ssUur: { flex: 1, backgroundColor: C.veld, borderWidth: 1, borderColor: C.line, borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
+  ssUurAan: { backgroundColor: C.amber, borderColor: C.amber },
+  ssUurT: { color: C.ink, fontWeight: '800', fontSize: 14 },
+  ssUurTAan: { color: '#fff' },
+  ssUurC: { color: C.muted, fontWeight: '600', fontSize: 11, marginTop: 1 },
+  ssUurCAan: { color: 'rgba(255,255,255,0.9)' },
+  knopSuper: { backgroundColor: C.amber },
+  knopSuperT: { color: '#fff', fontWeight: '800', fontSize: 15.5 },
   voucherHint: { backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: 12, padding: 14, marginTop: 12 },
   voucherHintT: { color: '#0E7C5A', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   actieSub: { color: C.muted, fontSize: 12.5, marginTop: 3 },

@@ -142,6 +142,7 @@ function Home({ session }: { session: Session }) {
   const [kramen, setKramen] = useState<Kraam[]>([])
   const [kermissen, setKermissen] = useState<Kermis[]>([])
   const [acties, setActies] = useState<any[]>([])
+  const [superAct, setSuperAct] = useState<any | null>(null)
   const [stats, setStats] = useState({ punten: 0, bezocht: 0, streak: 0, lunapark: false })
   const [laden, setLaden] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -219,8 +220,11 @@ function Home({ session }: { session: Session }) {
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
         supabase.from('kermis').select('id, naam, plaats, van, tot').gte('tot', todayISO).order('van'),
         supabase.from('kermis_attractie').select('kermis_id'),
-        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster').eq('actief', true).gte('tot', todayISO),
+        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
       ])
+
+      const { data: ss } = await supabase.rpc('actieve_superster')
+      setSuperAct(ss ?? null)
 
       const saldoMap = new Map<string, number>()
       ;(sal ?? []).forEach((r: any) => saldoMap.set(r.attractie_id, (saldoMap.get(r.attractie_id) ?? 0) + (r.saldo ?? 0)))
@@ -276,7 +280,6 @@ function Home({ session }: { session: Session }) {
   ]
   const voornaam = naam ? naam.split(' ')[0] : ''
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
-  const superAct = acties.find((a: any) => a.superster)
 
   return (
     <View style={s.scherm}>
@@ -303,11 +306,6 @@ function Home({ session }: { session: Session }) {
                 : '🔔 Zet meldingen aan en mis geen enkele actie in je buurt'}
             </Text>
             {push !== 'geblokkeerd' ? <Text style={s.pushBalkKnop}>{pushBezig ? '…' : 'Aanzetten'}</Text> : null}
-          </Pressable>
-        ) : push === 'aan' ? (
-          <Pressable style={[s.pushBalk, s.pushBalkAan]} onPress={wisselPush} disabled={pushBezig}>
-            <Text style={[s.pushBalkT, { color: C.green }]}>🔔 Meldingen staan aan</Text>
-            <Text style={[s.pushBalkKnop, { color: C.muted }]}>{pushBezig ? '…' : 'Uitzetten'}</Text>
           </Pressable>
         ) : null}
 

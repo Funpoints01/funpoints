@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
-import Svg, { Path } from 'react-native-svg'
+import Svg, { Path, Line, Circle, Polygon, Defs, LinearGradient, Stop } from 'react-native-svg'
 import { supabase } from '../../lib/supabase'
 
 const C = {
@@ -19,26 +19,40 @@ function polar(cx: number, cy: number, r: number, deg: number) {
   const rad = (deg * Math.PI) / 180
   return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) }
 }
-function boog(cx: number, cy: number, r: number, p: number) {
-  const s0 = polar(cx, cy, r, 180)
-  const s1 = polar(cx, cy, r, 180 - Math.max(0.0001, Math.min(1, p)) * 180)
-  return `M ${s0.x.toFixed(1)} ${s0.y.toFixed(1)} A ${r} ${r} 0 0 0 ${s1.x.toFixed(1)} ${s1.y.toFixed(1)}`
+function boog(cx: number, cy: number, r: number, a1: number, a2: number) {
+  const s = polar(cx, cy, r, a1), e = polar(cx, cy, r, a2)
+  const large = Math.abs(a1 - a2) > 180 ? 1 : 0
+  return `M ${s.x.toFixed(1)} ${s.y.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(1)} ${e.y.toFixed(1)}`
 }
 
-function Meter({ saldo, doel }: { saldo: number; doel: number }) {
-  const p = doel > 0 ? Math.max(0, Math.min(1, saldo / doel)) : 0
-  const cx = 110, cy = 112, r = 90, sw = 16
+function Meter({ p }: { p: number }) {
+  const cx = 130, cy = 140, R = 104, sw = 20
+  const th = 180 - Math.max(0, Math.min(1, p)) * 180
+  const tip = polar(cx, cy, R - 14, th)
+  const bl = polar(cx, cy, 14, th - 90)
+  const br = polar(cx, cy, 14, th + 90)
+  const ticks = []
+  for (let i = 0; i <= 8; i++) {
+    const a = 180 - (i * 180) / 8
+    const o = polar(cx, cy, R + 13, a), ii = polar(cx, cy, R - 2, a)
+    ticks.push(<Line key={i} x1={o.x} y1={o.y} x2={ii.x} y2={ii.y} stroke="#D9D4E4" strokeWidth={3} strokeLinecap="round" />)
+  }
   return (
-    <View style={{ width: 220, height: 130, alignItems: 'center', justifyContent: 'flex-end' }}>
-      <Svg width={220} height={130} style={{ position: 'absolute', top: 0 }}>
-        <Path d={boog(cx, cy, r, 1)} stroke="#EDE9F5" strokeWidth={sw} strokeLinecap="round" fill="none" />
-        {p > 0 ? <Path d={boog(cx, cy, r, p)} stroke="#10B981" strokeWidth={sw} strokeLinecap="round" fill="none" /> : null}
-      </Svg>
-      <View style={{ alignItems: 'center', paddingBottom: 4 }}>
-        <Text style={s.meterPct}>{Math.round(p * 100)}%</Text>
-        <Text style={s.meterSub}>{saldo} / {doel} punten</Text>
-      </View>
-    </View>
+    <Svg width={260} height={168}>
+      <Defs>
+        <LinearGradient id="fpMeter" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor="#FB7185" />
+          <Stop offset="0.5" stopColor="#F59E0B" />
+          <Stop offset="1" stopColor="#10B981" />
+        </LinearGradient>
+      </Defs>
+      <Path d={boog(cx, cy, R, 180, 0)} fill="none" stroke="#EDE9F5" strokeWidth={sw + 6} strokeLinecap="round" />
+      <Path d={boog(cx, cy, R, 180, 0)} fill="none" stroke="url(#fpMeter)" strokeWidth={sw} strokeLinecap="round" />
+      {ticks}
+      <Polygon points={`${bl.x.toFixed(1)},${bl.y.toFixed(1)} ${tip.x.toFixed(1)},${tip.y.toFixed(1)} ${br.x.toFixed(1)},${br.y.toFixed(1)}`} fill="#241B3A" />
+      <Circle cx={cx} cy={cy} r={16} fill="#fff" stroke="#241B3A" strokeWidth={5} />
+      <Circle cx={cx} cy={cy} r={5} fill="#241B3A" />
+    </Svg>
   )
 }
 
@@ -93,7 +107,7 @@ export default function KraamDetail() {
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={wrapC}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>
           <Text style={s.heroEmoji}>{EMOJI[attr.soort] ?? '🎪'}</Text>
@@ -117,7 +131,9 @@ export default function KraamDetail() {
           attr.hoofdprijs_naam && attr.hoofdprijs_punten ? (
             <View style={s.prijsKaart}>
               <Text style={s.prijsKop}>🎁 Op weg naar je hoofdprijs</Text>
-              <Meter saldo={saldo ?? 0} doel={attr.hoofdprijs_punten} />
+              <Meter p={(saldo ?? 0) / attr.hoofdprijs_punten} />
+              <Text style={s.meterPct}>{Math.round(Math.min(1, (saldo ?? 0) / attr.hoofdprijs_punten) * 100)}%</Text>
+              <Text style={s.meterSub}>{saldo ?? 0} / {attr.hoofdprijs_punten} punten</Text>
               <Text style={s.prijsNaam}>{attr.hoofdprijs_naam}</Text>
               {(saldo ?? 0) >= attr.hoofdprijs_punten
                 ? <Text style={s.prijsKlaar}>🎉 Je hebt genoeg punten — haal je prijs op!</Text>
