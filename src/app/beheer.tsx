@@ -21,7 +21,16 @@ const PROV: Record<string, string> = {
   LIM: 'Limburg', BRU: 'Brussel', WBR: 'Waals-Brabant', HEN: 'Henegouwen',
   NAM: 'Namen', LIE: 'Luik', LUX: 'Luxemburg', Onbekend: 'Onbekend',
 }
-function maandLabel(iso: string): string { const [j, m] = iso.split('-'); return `${m}/${j.slice(2)}` }
+function tijdLabels(isos: string[]): string[] {
+  if (isos.length === 0) return []
+  const dagen = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86400000
+  const span = dagen(isos[0], isos[isos.length - 1])
+  const perMaand = span >= 400 // dag/week -> DD/MM, langere historiek -> MM/JJ
+  return isos.map((iso) => {
+    const [j, m, d] = iso.split('-')
+    return perMaand ? `${m}/${j.slice(2)}` : `${d}/${m}`
+  })
+}
 function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); return `${d}-${m}-${j}` }
 
 export default function Beheer() {
@@ -112,7 +121,9 @@ function LijnGrafiek({ series, xlabels }: { series: { naam: string; kleur: strin
   const px = (i: number) => padL + (n <= 1 ? iW / 2 : (i / (n - 1)) * iW)
   const py = (v: number) => padT + iH - (v / max) * iH
   const ticks = Array.from(new Set([0, Math.round(max / 2), max])).sort((a, b) => a - b)
-  const xIdx = n <= 1 ? [0] : [0, n - 1]
+  const xIdx = n <= 1 ? [0] : n <= 6
+    ? Array.from({ length: n }, (_, i) => i)
+    : Array.from(new Set([0, 1, 2, 3, 4].map((k) => Math.round((k / 4) * (n - 1)))))
   return (
     <View>
       <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
@@ -216,7 +227,7 @@ function Overzicht() {
   if (laden) return <View style={{ paddingVertical: 50 }}><ActivityIndicator color={C.violet} size="large" /></View>
   const maxL = Math.max(1, ...leeftijden.map((r: any) => Number(r.aantal)))
   const maxP = Math.max(1, ...provincies.map((r: any) => Number(r.aantal)))
-  const xlabels = reeks.map((r: any) => maandLabel(r.maand))
+  const xlabels = tijdLabels(reeks.map((r: any) => r.maand))
   return (
     <>
       <View style={s.tegels}>
@@ -311,7 +322,7 @@ function Attracties() {
                   </View>
                   <Text style={[s.blokSub, { marginTop: 14 }]}>Openstaande punten over tijd</Text>
                   {reeks.length === 0 ? <Text style={s.leeg}>Nog geen boekingen.</Text> :
-                    <LijnGrafiek xlabels={reeks.map((r: any) => maandLabel(r.maand))} series={[{ naam: 'Openstaand', kleur: C.coral, waarden: reeks.map((r: any) => Number(r.openstaand)) }]} />}
+                    <LijnGrafiek xlabels={tijdLabels(reeks.map((r: any) => r.maand))} series={[{ naam: 'Openstaand', kleur: C.coral, waarden: reeks.map((r: any) => Number(r.openstaand)) }]} />}
                 </View>
               )
             ) : null}
