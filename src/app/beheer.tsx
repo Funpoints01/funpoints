@@ -135,6 +135,52 @@ function LijnGrafiek({ series, xlabels }: { series: { naam: string; kleur: strin
   )
 }
 
+function BelgieHeatmap() {
+  const [basis, setBasis] = useState<{ lat: number; lon: number }[]>([])
+  const [punten, setPunten] = useState<{ lat: number; lon: number; aantal: number }[]>([])
+  const [laden, setLaden] = useState(true)
+  useEffect(() => {
+    (async () => {
+      const [{ data: b }, { data: p }] = await Promise.all([
+        supabase.from('postcode_coord').select('lat, lon'),
+        supabase.rpc('mgmt_heatmap'),
+      ])
+      setBasis((b ?? []) as any); setPunten((p ?? []) as any); setLaden(false)
+    })()
+  }, [])
+  if (laden) return <View style={{ paddingVertical: 30 }}><ActivityIndicator color={C.violet} /></View>
+  const LAT0 = 49.45, LAT1 = 51.55, LON0 = 2.5, LON1 = 6.45
+  const cosMid = Math.cos((50.5 * Math.PI) / 180)
+  const W = 640, pad = 14
+  const iW = W - 2 * pad
+  const iH = iW * ((LAT1 - LAT0) / ((LON1 - LON0) * cosMid))
+  const H = iH + 2 * pad
+  const px = (lon: number) => pad + ((lon - LON0) / (LON1 - LON0)) * iW
+  const py = (lat: number) => pad + ((LAT1 - lat) / (LAT1 - LAT0)) * iH
+  const maxA = Math.max(1, ...punten.map((p) => p.aantal))
+  const totaal = punten.reduce((t, p) => t + p.aantal, 0)
+  return (
+    <View>
+      <View style={{ width: '100%', aspectRatio: W / H, backgroundColor: '#FBFAFE', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+        <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}>
+          {basis.map((d, i) => <Circle key={'b' + i} cx={px(d.lon)} cy={py(d.lat)} r={1.3} fill="#D9D4E4" />)}
+          {punten.map((p, i) => {
+            const rel = p.aantal / maxA
+            const r = 6 + Math.sqrt(rel) * 16
+            return (
+              <Circle key={'h' + i} cx={px(p.lon)} cy={py(p.lat)} r={r}
+                fill="#FB7185" fillOpacity={0.3 + 0.45 * rel} stroke="#E11D63" strokeWidth={1} strokeOpacity={0.5} />
+            )
+          })}
+        </Svg>
+      </View>
+      <Text style={[s.blokSub, { marginTop: 8 }]}>
+        {totaal} gebruiker(s) op {punten.length} postcode(s) · elke grijze stip is een Belgische postcode
+      </Text>
+    </View>
+  )
+}
+
 function Dashboard() {
   const router = useRouter()
   const [tab, setTab] = useState<'overzicht' | 'attracties' | 'kermissen'>('overzicht')
@@ -201,6 +247,12 @@ function Overzicht() {
         </View>
       </View>
 
+      <View style={s.blok}>
+        <Text style={s.blokTitel}>Waar zitten je gebruikers?</Text>
+        <Text style={s.blokSub}>Heatmap op de kaart van België</Text>
+        <View style={{ marginTop: 12 }}><BelgieHeatmap /></View>
+      </View>
+
       <View style={s.tweekolom}>
         <View style={[s.blok, s.kolom]}>
           <Text style={s.blokTitel}>Leeftijdscategorieën</Text>
@@ -211,7 +263,7 @@ function Overzicht() {
         </View>
         <View style={[s.blok, s.kolom]}>
           <Text style={s.blokTitel}>Per provincie</Text>
-          <Text style={s.blokSub}>Kaart-heatmap komt eraan</Text>
+          <Text style={s.blokSub}>Aantal geactiveerde accounts</Text>
           <View style={{ marginTop: 12, gap: 9 }}>
             {provincies.length === 0 ? <Text style={s.leeg}>Nog geen data.</Text> :
               provincies.map((r: any) => <Balk key={r.provincie} label={PROV[r.provincie] ?? r.provincie} aantal={Number(r.aantal)} max={maxP} kleur={C.green} />)}
