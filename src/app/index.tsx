@@ -87,6 +87,10 @@ export default function Landing() {
 
         <Text style={s.voet}>Funpoints · voor de foor</Text>
       </ScrollView>
+
+      <Pressable onPress={() => router.push('/beheer')} style={s.mgmtKnop} hitSlop={10}>
+        <Text style={s.mgmtKnopT}>Management</Text>
+      </Pressable>
     </View>
   )
 }
@@ -141,4 +145,6 @@ const s = StyleSheet.create({
 
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 26, opacity: 0.7 },
   blob: { position: 'absolute', width: 260, height: 260, borderRadius: 130, opacity: 0.14 },
+  mgmtKnop: { position: 'absolute', right: 16, bottom: 14, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  mgmtKnopT: { color: C.muted, fontSize: 11.5, fontWeight: '700', opacity: 0.6 },
 })
