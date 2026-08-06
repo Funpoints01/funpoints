@@ -32,6 +32,14 @@ function tijdLabels(isos: string[]): string[] {
   })
 }
 function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); return `${d}-${m}-${j}` }
+function euro(n: number): string {
+  return '€ ' + Number(n || 0).toLocaleString('nl-BE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+const STATUS_OPTS = [
+  { key: 'fictief', label: 'Fictief', kleur: '#9a93ad' },
+  { key: 'proef', label: 'Proef', kleur: '#F59E0B' },
+  { key: 'actief', label: 'Actief', kleur: '#10B981' },
+] as const
 
 export default function Beheer() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -191,7 +199,8 @@ function BelgieHeatmap() {
 
 function Dashboard() {
   const router = useRouter()
-  const [tab, setTab] = useState<'overzicht' | 'attracties' | 'kermissen'>('overzicht')
+  const [tab, setTab] = useState<'overzicht' | 'financieel' | 'uitbaters' | 'attracties' | 'kermissen'>('overzicht')
+  const LABEL = { overzicht: 'Overzicht', financieel: 'Financieel', uitbaters: 'Uitbaters', attracties: 'Attracties', kermissen: 'Kermissen' } as const
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={s.wrap}>
@@ -200,13 +209,17 @@ function Dashboard() {
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} hitSlop={8}><Text style={s.uitlog}>Uitloggen</Text></Pressable>
         </View>
         <View style={s.tabs}>
-          {(['overzicht', 'attracties', 'kermissen'] as const).map((t) => (
+          {(['overzicht', 'financieel', 'uitbaters', 'attracties', 'kermissen'] as const).map((t) => (
             <Pressable key={t} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabAan]}>
-              <Text style={[s.tabT, tab === t && s.tabTAan]}>{t === 'overzicht' ? 'Overzicht' : t === 'attracties' ? 'Attracties' : 'Kermissen'}</Text>
+              <Text style={[s.tabT, tab === t && s.tabTAan]}>{LABEL[t]}</Text>
             </Pressable>
           ))}
         </View>
-        {tab === 'overzicht' ? <Overzicht /> : tab === 'attracties' ? <Attracties /> : <Kermissen />}
+        {tab === 'overzicht' ? <Overzicht />
+          : tab === 'financieel' ? <Financieel />
+          : tab === 'uitbaters' ? <Uitbaters />
+          : tab === 'attracties' ? <Attracties />
+          : <Kermissen />}
       </ScrollView>
     </View>
   )
@@ -214,17 +227,18 @@ function Dashboard() {
 
 function Overzicht() {
   const [ov, setOv] = useState<any>(null)
+  const [fin, setFin] = useState<any>(null)
   const [reeks, setReeks] = useState<any[]>([])
   const [leeftijden, setLeeftijden] = useState<any[]>([])
   const [provincies, setProvincies] = useState<any[]>([])
   const [laden, setLaden] = useState(true)
   useEffect(() => {
     (async () => {
-      const [{ data: o }, { data: r }, { data: l }, { data: p }] = await Promise.all([
-        supabase.rpc('mgmt_overzicht'), supabase.rpc('mgmt_accounts_over_tijd'),
+      const [{ data: o }, { data: f }, { data: r }, { data: l }, { data: p }] = await Promise.all([
+        supabase.rpc('mgmt_overzicht'), supabase.rpc('mgmt_financieel'), supabase.rpc('mgmt_accounts_over_tijd'),
         supabase.rpc('mgmt_leeftijden'), supabase.rpc('mgmt_provincies'),
       ])
-      setOv(o); setReeks(r ?? []); setLeeftijden(l ?? []); setProvincies(p ?? []); setLaden(false)
+      setOv(o); setFin(f); setReeks(r ?? []); setLeeftijden(l ?? []); setProvincies(p ?? []); setLaden(false)
     })()
   }, [])
   if (laden) return <View style={{ paddingVertical: 50 }}><ActivityIndicator color={C.violet} size="large" /></View>
@@ -237,9 +251,11 @@ function Overzicht() {
         <View style={s.tegel}><Text style={s.tegelNum}>{ov?.actieve_accounts ?? 0}</Text><Text style={s.tegelLbl}>Actieve accounts</Text></View>
         <View style={s.tegel}><Text style={[s.tegelNum, { color: C.amber }]}>{ov?.slapende_kaartjes ?? 0}</Text><Text style={s.tegelLbl}>Slapende kaartjes</Text></View>
         <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{ov?.geclaimde_kaartjes ?? 0}</Text><Text style={s.tegelLbl}>Geclaimde kaartjes</Text></View>
-        <View style={s.tegel}><Text style={s.tegelNum}>{ov?.attracties ?? 0}</Text><Text style={s.tegelLbl}>Attracties</Text></View>
+        <View style={s.tegel}><Text style={s.tegelNum}>{fin?.uitbaters ?? 0}</Text><Text style={s.tegelLbl}>Uitbaters</Text></View>
+        <View style={s.tegel}><Text style={s.tegelNum}>{ov?.attracties ?? 0}</Text><Text style={s.tegelLbl}>Attracties (kramen)</Text></View>
         <View style={s.tegel}><Text style={s.tegelNum}>{ov?.kermissen ?? 0}</Text><Text style={s.tegelLbl}>Kermissen</Text></View>
         <View style={s.tegel}><Text style={s.tegelNum}>{ov?.check_ins ?? 0}</Text><Text style={s.tegelLbl}>Check-ins</Text></View>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{euro(fin?.mrr ?? 0)}</Text><Text style={s.tegelLbl}>MRR</Text></View>
       </View>
 
       <View style={s.blok}>
@@ -279,6 +295,138 @@ function Overzicht() {
         </View>
       </View>
     </>
+  )
+}
+
+function Financieel() {
+  const [fin, setFin] = useState<any>(null)
+  const [reeks, setReeks] = useState<any[]>([])
+  const [laden, setLaden] = useState(true)
+  useEffect(() => {
+    (async () => {
+      const [{ data: f }, { data: r }] = await Promise.all([
+        supabase.rpc('mgmt_financieel'), supabase.rpc('mgmt_credits_over_tijd'),
+      ])
+      setFin(f); setReeks(r ?? []); setLaden(false)
+    })()
+  }, [])
+  if (laden) return <View style={{ paddingVertical: 50 }}><ActivityIndicator color={C.violet} size="large" /></View>
+  const geenOmzet = (fin?.actief ?? 0) === 0
+  return (
+    <View style={{ marginTop: 4 }}>
+      {geenOmzet ? (
+        <View style={[s.blok, { backgroundColor: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+          <Text style={{ color: C.ink, fontWeight: '800', fontSize: 14 }}>Nog geen betalende uitbaters</Text>
+          <Text style={[s.blokSub, { marginTop: 4 }]}>
+            Alle {fin?.uitbaters ?? 0} uitbater(s) staan op fictief of proef, dus de MRR is voorlopig € 0.
+            Zet een uitbater op “Actief” in het tabblad Uitbaters zodra die begint te betalen.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={[s.tegels, { marginTop: 16 }]}>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{euro(fin?.mrr ?? 0)}</Text><Text style={s.tegelLbl}>MRR (per maand)</Text></View>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{euro(fin?.arr ?? 0)}</Text><Text style={s.tegelLbl}>ARR (per jaar)</Text></View>
+        <View style={s.tegel}><Text style={s.tegelNum}>{euro(fin?.credit_omzet ?? 0)}</Text><Text style={s.tegelLbl}>Credit-omzet (verkocht)</Text></View>
+      </View>
+
+      <View style={s.blok}>
+        <Text style={s.blokTitel}>Abonnementen</Text>
+        <Text style={s.blokSub}>€ 99/maand voor het eerste kraam · € 50/maand per extra kraam · enkel actieve uitbaters</Text>
+        <View style={{ marginTop: 12, gap: 9 }}>
+          <View style={s.finRij}><Text style={s.finLbl}>Actieve uitbaters</Text><Text style={[s.finVal, { color: C.green }]}>{fin?.actief ?? 0}</Text></View>
+          <View style={s.finRij}><Text style={s.finLbl}>In proefperiode</Text><Text style={[s.finVal, { color: C.amber }]}>{fin?.proef ?? 0}</Text></View>
+          <View style={s.finRij}><Text style={s.finLbl}>Fictief</Text><Text style={s.finVal}>{fin?.fictief ?? 0}</Text></View>
+          <View style={s.finRij}><Text style={s.finLbl}>Totaal kramen</Text><Text style={s.finVal}>{fin?.kramen ?? 0}</Text></View>
+        </View>
+      </View>
+
+      <View style={s.blok}>
+        <Text style={s.blokTitel}>Credits</Text>
+        <Text style={s.blokSub}>€ 0,20 per credit</Text>
+        <View style={{ marginTop: 12, gap: 9 }}>
+          <View style={s.finRij}><Text style={s.finLbl}>Openstaand (niet verzilverd)</Text><Text style={s.finVal}>{fin?.credits_openstaand ?? 0}</Text></View>
+          <View style={s.finRij}><Text style={s.finLbl}>Verzilverd (totaal)</Text><Text style={[s.finVal, { color: C.coralD }]}>{fin?.credits_verzilverd ?? 0}</Text></View>
+          <View style={s.finRij}><Text style={s.finLbl}>Verkocht aan betalende uitbaters</Text><Text style={s.finVal}>{fin?.credits_verkocht ?? 0}</Text></View>
+        </View>
+      </View>
+
+      <View style={s.blok}>
+        <Text style={s.blokTitel}>Credits over tijd</Text>
+        <Text style={s.blokSub}>Openstaand saldo vs. verzilverde credits · cumulatief</Text>
+        <View style={{ marginTop: 10 }}>
+          {reeks.length === 0 ? <Text style={s.leeg}>Nog geen credit-bewegingen.</Text> : (
+            <LijnGrafiek xlabels={tijdLabels(reeks.map((r: any) => r.dag))} series={[
+              { naam: 'Openstaand', kleur: C.violet, waarden: reeks.map((r: any) => Number(r.openstaand_cum)) },
+              { naam: 'Verzilverd', kleur: C.coral, waarden: reeks.map((r: any) => Number(r.verzilverd_cum)) },
+            ]} />
+          )}
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function Uitbaters() {
+  const [lijst, setLijst] = useState<any[]>([])
+  const [laden, setLaden] = useState(true)
+  const [credit, setCredit] = useState<Record<string, string>>({})
+  useEffect(() => { herlaad() }, [])
+  async function herlaad() { const { data } = await supabase.rpc('mgmt_uitbaters'); setLijst(data ?? []); setLaden(false) }
+
+  async function zetStatus(id: string, status: string) {
+    setLijst((l) => l.map((u) => u.id === id ? { ...u, status, mrr: status === 'actief' && Number(u.kramen) > 0 ? 99 + 50 * (Number(u.kramen) - 1) : 0 } : u))
+    await supabase.rpc('mgmt_uitbater_status', { p_id: id, p_status: status })
+  }
+  async function kenToe(id: string) {
+    const n = parseInt(credit[id] ?? '', 10)
+    if (!n) return
+    setCredit((c) => ({ ...c, [id]: '' }))
+    const { data } = await supabase.rpc('mgmt_credits_toekennen', { p_id: id, p_aantal: n })
+    if (typeof data === 'number') setLijst((l) => l.map((u) => u.id === id ? { ...u, credits: data } : u))
+  }
+
+  if (laden) return <View style={{ paddingVertical: 50 }}><ActivityIndicator color={C.violet} size="large" /></View>
+  return (
+    <View style={{ marginTop: 4, gap: 10 }}>
+      <View style={[s.blok, { marginTop: 6 }]}>
+        <Text style={s.blokSub}>
+          Zet elke uitbater op fictief, proef of actief. Enkel actieve uitbaters tellen mee voor de MRR.
+          Credits kan je hier handmatig toekennen tot de betaalflow live staat.
+        </Text>
+      </View>
+      {lijst.length === 0 ? <View style={s.blok}><Text style={s.leeg}>Nog geen uitbaters.</Text></View> :
+        lijst.map((u: any) => (
+          <View key={u.id} style={s.blok}>
+            <View style={s.uTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.attrNaam}>{u.naam ?? 'Naamloos'}</Text>
+                <Text style={s.attrSub}>{u.email ?? '—'} · {u.kramen} kraam(en)</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[s.attrPunten, { color: u.status === 'actief' ? C.green : C.muted }]}>{euro(u.mrr)}</Text>
+                <Text style={s.attrPuntenL}>per maand</Text>
+              </View>
+            </View>
+
+            <View style={s.statusRij}>
+              {STATUS_OPTS.map((o) => (
+                <Pressable key={o.key} onPress={() => zetStatus(u.id, o.key)}
+                  style={[s.statusChip, u.status === o.key && { backgroundColor: o.kleur, borderColor: o.kleur }]}>
+                  <Text style={[s.statusChipT, u.status === o.key && { color: '#fff' }]}>{o.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={s.credRij}>
+              <Text style={s.credSaldo}>{u.credits} credits</Text>
+              <TextInput style={s.credInput} value={credit[u.id] ?? ''} onChangeText={(t) => setCredit((c) => ({ ...c, [u.id]: t.replace(/[^0-9-]/g, '') }))}
+                keyboardType="numbers-and-punctuation" placeholder="± aantal" placeholderTextColor={C.muted} />
+              <Pressable onPress={() => kenToe(u.id)} style={s.credKnop}><Text style={s.credKnopT}>Toekennen</Text></Pressable>
+            </View>
+          </View>
+        ))}
+    </View>
   )
 }
 
@@ -437,7 +585,7 @@ const s = StyleSheet.create({
   markTSm: { color: '#fff', fontWeight: '900', fontSize: 18 },
   logoT: { color: C.ink, fontWeight: '800', fontSize: 19 },
   uitlog: { color: C.muted, fontSize: 14, fontWeight: '700' },
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   tab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
   tabAan: { backgroundColor: C.violet, borderColor: C.violet },
   tabT: { color: C.muted, fontWeight: '800', fontSize: 13.5 },
@@ -476,4 +624,16 @@ const s = StyleSheet.create({
   kermRij: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 0 },
   wijzig: { color: C.violet, fontSize: 13, fontWeight: '800' },
   verwijder: { color: C.red, fontSize: 13, fontWeight: '800' },
+  finRij: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: 8 },
+  finLbl: { color: C.muted, fontSize: 13.5, fontWeight: '700' },
+  finVal: { color: C.ink, fontSize: 16, fontWeight: '900' },
+  uTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  statusRij: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  statusChip: { flex: 1, paddingVertical: 9, borderRadius: 999, backgroundColor: C.veld, borderWidth: 1, borderColor: C.line, alignItems: 'center' },
+  statusChipT: { color: C.muted, fontWeight: '800', fontSize: 13 },
+  credRij: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  credSaldo: { flex: 1, color: C.ink, fontSize: 14, fontWeight: '800' },
+  credInput: { width: 110, backgroundColor: C.veld, borderRadius: 11, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 16, paddingHorizontal: 12, paddingVertical: 10 },
+  credKnop: { backgroundColor: C.violet, borderRadius: 11, paddingHorizontal: 16, paddingVertical: 11 },
+  credKnopT: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
 })
