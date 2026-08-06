@@ -4,7 +4,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import Svg, { Polyline, Line, Circle } from 'react-native-svg'
+import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { DatumVeld } from '../components/DatumVeld'
@@ -103,29 +103,29 @@ function Balk({ label, aantal, max, kleur }: { label: string; aantal: number; ma
 }
 
 function LijnGrafiek({ series, xlabels }: { series: { naam: string; kleur: string; waarden: number[] }[]; xlabels: string[] }) {
-  const W = 680, H = 210, pad = 26
+  const W = 680, H = 232, padL = 40, padR = 16, padT = 14, padB = 30
+  const iW = W - padL - padR, iH = H - padT - padB
   const n = Math.max(1, ...series.map((r) => r.waarden.length))
-  const max = Math.max(1, ...series.flatMap((r) => r.waarden))
-  const px = (i: number) => pad + (n <= 1 ? 0 : (i / (n - 1)) * (W - 2 * pad))
-  const py = (v: number) => (H - pad) - (v / max) * (H - 2 * pad)
+  const maxRaw = Math.max(0, ...series.flatMap((r) => r.waarden))
+  const max = maxRaw <= 0 ? 1 : maxRaw
+  const px = (i: number) => padL + (n <= 1 ? iW / 2 : (i / (n - 1)) * iW)
+  const py = (v: number) => padT + iH - (v / max) * iH
+  const ticks = Array.from(new Set([0, Math.round(max / 2), max])).sort((a, b) => a - b)
+  const xIdx = n <= 1 ? [0] : [0, n - 1]
   return (
     <View>
       <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-        <Line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="#E4E0EE" strokeWidth={1} />
-        <Line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke="#E4E0EE" strokeWidth={1} />
-        {series.map((r) => (
+        {ticks.map((t) => <Line key={'g' + t} x1={padL} y1={py(t)} x2={W - padR} y2={py(t)} stroke="#EDEAF4" strokeWidth={1} />)}
+        {ticks.map((t) => <SvgText key={'yl' + t} x={padL - 7} y={py(t) + 3.5} fill="#9a93ad" fontSize={10} fontWeight="700" textAnchor="end">{t}</SvgText>)}
+        {series.map((r) => r.waarden.length >= 2 ? (
           <Polyline key={r.naam} points={r.waarden.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ')}
             fill="none" stroke={r.kleur} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
-        ))}
-        {series.map((r) => r.waarden.length ? (
-          <Circle key={r.naam + 'd'} cx={px(r.waarden.length - 1)} cy={py(r.waarden[r.waarden.length - 1])} r={3.5} fill={r.kleur} />
         ) : null)}
+        {series.map((r) => r.waarden.map((v, i) => n <= 14 ? (
+          <Circle key={r.naam + i} cx={px(i)} cy={py(v)} r={3.4} fill={r.kleur} />
+        ) : null))}
+        {xIdx.map((i) => <SvgText key={'xl' + i} x={px(i)} y={H - 9} fill="#9a93ad" fontSize={10} fontWeight="700" textAnchor="middle">{xlabels[i] ?? ''}</SvgText>)}
       </Svg>
-      <View style={s.grafiekVoet}>
-        <Text style={s.grafiekAs}>{xlabels[0] ?? ''}</Text>
-        <Text style={s.grafiekAs}>max {max}</Text>
-        <Text style={s.grafiekAs}>{xlabels[xlabels.length - 1] ?? ''}</Text>
-      </View>
       <View style={s.legende}>
         {series.map((r) => (
           <View key={r.naam} style={s.legItem}><View style={[s.legDot, { backgroundColor: r.kleur }]} /><Text style={s.legT}>{r.naam}</Text></View>
