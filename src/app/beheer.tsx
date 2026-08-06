@@ -4,10 +4,11 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg'
+import Svg, { Polyline, Line, Circle, Path, Text as SvgText } from 'react-native-svg'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { DatumVeld } from '../components/DatumVeld'
+import { BE_PROVINCIES } from '../lib/belgie'
 
 const C = {
   bg: '#F7F6FB', card: '#FFFFFF', veld: '#F1EEF9', ink: '#241B3A',
@@ -136,17 +137,10 @@ function LijnGrafiek({ series, xlabels }: { series: { naam: string; kleur: strin
 }
 
 function BelgieHeatmap() {
-  const [basis, setBasis] = useState<{ lat: number; lon: number }[]>([])
   const [punten, setPunten] = useState<{ lat: number; lon: number; aantal: number }[]>([])
   const [laden, setLaden] = useState(true)
   useEffect(() => {
-    (async () => {
-      const [{ data: b }, { data: p }] = await Promise.all([
-        supabase.from('postcode_coord').select('lat, lon'),
-        supabase.rpc('mgmt_heatmap'),
-      ])
-      setBasis((b ?? []) as any); setPunten((p ?? []) as any); setLaden(false)
-    })()
+    supabase.rpc('mgmt_heatmap').then(({ data }) => { setPunten((data ?? []) as any); setLaden(false) })
   }, [])
   if (laden) return <View style={{ paddingVertical: 30 }}><ActivityIndicator color={C.violet} /></View>
   const LAT0 = 49.45, LAT1 = 51.55, LON0 = 2.5, LON1 = 6.45
@@ -163,19 +157,19 @@ function BelgieHeatmap() {
     <View>
       <View style={{ width: '100%', aspectRatio: W / H, backgroundColor: '#FBFAFE', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}>
-          {basis.map((d, i) => <Circle key={'b' + i} cx={px(d.lon)} cy={py(d.lat)} r={1.3} fill="#D9D4E4" />)}
+          {BE_PROVINCIES.map((d, i) => <Path key={'p' + i} d={d} fill="#E7E3F1" stroke="#FFFFFF" strokeWidth={1.2} />)}
           {punten.map((p, i) => {
             const rel = p.aantal / maxA
             const r = 6 + Math.sqrt(rel) * 16
             return (
               <Circle key={'h' + i} cx={px(p.lon)} cy={py(p.lat)} r={r}
-                fill="#FB7185" fillOpacity={0.3 + 0.45 * rel} stroke="#E11D63" strokeWidth={1} strokeOpacity={0.5} />
+                fill="#FB7185" fillOpacity={0.35 + 0.45 * rel} stroke="#E11D63" strokeWidth={1} strokeOpacity={0.55} />
             )
           })}
         </Svg>
       </View>
       <Text style={[s.blokSub, { marginTop: 8 }]}>
-        {totaal} gebruiker(s) op {punten.length} postcode(s) · elke grijze stip is een Belgische postcode
+        {totaal} gebruiker(s) op {punten.length} postcode(s) · grotere bol = meer gebruikers
       </Text>
     </View>
   )
