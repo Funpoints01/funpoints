@@ -31,6 +31,7 @@ function toonDatum(iso: string): string { const [j, m, d] = iso.split('-'); retu
 function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
 function isSuperster(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
 const SS_UREN = [4, 8, 12]
+const RADII = [5, 10, 20, 35, 50, 75, 100]
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 // --- Regio-targeting (interim: provincie-niveau) ---
@@ -95,7 +96,7 @@ export default function Acties() {
   const [ssVoor, setSsVoor] = useState<string | null>(null)
   const [ssUren, setSsUren] = useState(4)
   const [ssPc, setSsPc] = useState('')
-  const [ssNiveau, setSsNiveau] = useState(0)
+  const [ssRadius, setSsRadius] = useState(25)
   const [ssBezig, setSsBezig] = useState(false)
   const [ssMelding, setSsMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [soort, setSoort] = useState('promo')
@@ -111,31 +112,29 @@ export default function Acties() {
 
   const [campVoor, setCampVoor] = useState<string | null>(null)
   const [campPc, setCampPc] = useState('')
-  const [campNiveau, setCampNiveau] = useState(0)
+  const [campRadius, setCampRadius] = useState(25)
   const [telling, setTelling] = useState<{ audience: number; bereikbaar: number } | null>(null)
   const [telBezig, setTelBezig] = useState(false)
   const [campBezig, setCampBezig] = useState(false)
   const [campMelding, setCampMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
 
-  async function telDoelgroep(pc: string, niveau: number) {
-    const provs = provinciesVoor(pc, niveau)
-    if (!provs) { setTelling(null); return }
+  async function telDoelgroep(pc: string, radius: number) {
+    if (!/^\d{4}$/.test((pc || '').trim())) { setTelling(null); return }
     setTelBezig(true)
-    const { data } = await supabase.rpc('tel_doelgroep', { p_provincies: provs })
+    const { data } = await supabase.rpc('tel_doelgroep', { p_postcode: pc.trim(), p_radius: radius })
     setTelBezig(false)
     setTelling(data ? { audience: (data as any).audience, bereikbaar: (data as any).bereikbaar } : null)
   }
 
   function openCampagne(actieId: string) {
-    setCampVoor(actieId); setCampMelding(null); setCampNiveau(0); setTelling(null)
-    telDoelgroep(campPc, 0)
+    setCampVoor(actieId); setCampMelding(null); setTelling(null)
+    telDoelgroep(campPc, campRadius)
   }
 
   async function activeerSuperster(actieId: string) {
-    const provs = provinciesVoor(ssPc, ssNiveau)
-    if (!provs) { setSsMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
+    if (!/^\d{4}$/.test(ssPc.trim())) { setSsMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
     setSsBezig(true); setSsMelding(null)
-    const { data, error } = await supabase.rpc('activeer_superster', { p_actie_id: actieId, p_uren: ssUren, p_provincies: provs })
+    const { data, error } = await supabase.rpc('activeer_superster', { p_actie_id: actieId, p_uren: ssUren, p_postcode: ssPc.trim(), p_radius: ssRadius })
     setSsBezig(false)
     if (error) {
       setSsMelding({ ok: false, tekst: error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits.' : 'Activeren mislukt.' })
@@ -147,10 +146,9 @@ export default function Acties() {
   }
 
   async function verstuurCampagne(actieId: string) {
-    const provs = provinciesVoor(campPc, campNiveau)
-    if (!provs) { setCampMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
+    if (!/^\d{4}$/.test(campPc.trim())) { setCampMelding({ ok: false, tekst: 'Geef eerst een geldige postcode.' }); return }
     setCampBezig(true); setCampMelding(null)
-    const { data, error } = await supabase.rpc('verstuur_campagne', { p_actie_id: actieId, p_provincies: provs })
+    const { data, error } = await supabase.rpc('verstuur_campagne', { p_actie_id: actieId, p_postcode: campPc.trim(), p_radius: campRadius })
     if (error) {
       setCampBezig(false)
       const m = error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.'
@@ -403,12 +401,12 @@ export default function Acties() {
                     placeholder="bv. 8531" placeholderTextColor={C.muted} />
                   {provVan(ssPc) ? <Text style={s.campProv}>Regio rond {PROV[provVan(ssPc)!]}</Text> : null}
 
-                  <Text style={[s.label, { marginTop: 14 }]}>Bereik</Text>
-                  <View style={s.balk}>
-                    {NIVEAUS.map((lbl, i) => (
-                      <Pressable key={i} onPress={() => setSsNiveau(i)}
-                        style={[s.balkSeg, i <= ssNiveau && s.balkSegAan]}>
-                        <Text style={[s.balkSegT, i <= ssNiveau && s.balkSegTAan]}>{lbl}</Text>
+                  <Text style={[s.label, { marginTop: 14 }]}>Straal</Text>
+                  <View style={s.kmRij}>
+                    {RADII.map((r) => (
+                      <Pressable key={r} onPress={() => setSsRadius(r)}
+                        style={[s.kmChip, ssRadius === r && s.kmChipAan]}>
+                        <Text style={[s.kmChipT, ssRadius === r && s.kmChipTAan]}>{r} km</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -419,8 +417,8 @@ export default function Acties() {
                     </View>
                   ) : null}
 
-                  <Pressable onPress={() => activeerSuperster(a.id)} disabled={ssBezig || !provinciesVoor(ssPc, ssNiveau)}
-                    style={[s.knop, s.knopSuper, { marginTop: 14 }, (ssBezig || !provinciesVoor(ssPc, ssNiveau)) && s.knopUit]}>
+                  <Pressable onPress={() => activeerSuperster(a.id)} disabled={ssBezig || !/^\d{4}$/.test(ssPc.trim())}
+                    style={[s.knop, s.knopSuper, { marginTop: 14 }, (ssBezig || !/^\d{4}$/.test(ssPc.trim())) && s.knopUit]}>
                     {ssBezig
                       ? <ActivityIndicator color="#fff" />
                       : <Text style={s.knopSuperT}>⭐ Activeer · {ssUren * 10} credits</Text>}
@@ -442,17 +440,17 @@ export default function Acties() {
 
                   <Text style={[s.label, { marginTop: 12 }]}>Postcode (middelpunt)</Text>
                   <TextInput style={s.input} value={campPc}
-                    onChangeText={(t) => { setCampPc(t); telDoelgroep(t, campNiveau) }}
+                    onChangeText={(t) => { setCampPc(t); telDoelgroep(t, campRadius) }}
                     keyboardType="number-pad" maxLength={4}
                     placeholder="bv. 8531" placeholderTextColor={C.muted} />
                   {provVan(campPc) ? <Text style={s.campProv}>Regio rond {PROV[provVan(campPc)!]}</Text> : null}
 
-                  <Text style={[s.label, { marginTop: 14 }]}>Bereik</Text>
-                  <View style={s.balk}>
-                    {NIVEAUS.map((lbl, i) => (
-                      <Pressable key={i} onPress={() => { setCampNiveau(i); telDoelgroep(campPc, i) }}
-                        style={[s.balkSeg, i <= campNiveau && s.balkSegAan]}>
-                        <Text style={[s.balkSegT, i <= campNiveau && s.balkSegTAan]}>{lbl}</Text>
+                  <Text style={[s.label, { marginTop: 14 }]}>Straal</Text>
+                  <View style={s.kmRij}>
+                    {RADII.map((r) => (
+                      <Pressable key={r} onPress={() => { setCampRadius(r); telDoelgroep(campPc, r) }}
+                        style={[s.kmChip, campRadius === r && s.kmChipAan]}>
+                        <Text style={[s.kmChipT, campRadius === r && s.kmChipTAan]}>{r} km</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -580,6 +578,11 @@ const s = StyleSheet.create({
   balkSegAan: { backgroundColor: C.violet },
   balkSegT: { color: C.muted, fontSize: 10.5, fontWeight: '700', textAlign: 'center' },
   balkSegTAan: { color: '#fff' },
+  kmRij: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  kmChip: { backgroundColor: C.veld, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8, borderWidth: 1, borderColor: C.line },
+  kmChipAan: { backgroundColor: C.violet, borderColor: C.violet },
+  kmChipT: { color: C.muted, fontWeight: '800', fontSize: 12.5 },
+  kmChipTAan: { color: '#fff' },
   tellerVak: { marginTop: 12, backgroundColor: C.veld, borderRadius: 12, padding: 14, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
   tellerT: { color: C.ink, fontSize: 13.5, fontWeight: '600', textAlign: 'center', lineHeight: 19 },
   tellerGetal: { color: C.violet, fontWeight: '900', fontSize: 15 },
