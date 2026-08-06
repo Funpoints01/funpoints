@@ -8,7 +8,7 @@ import Svg, { Polyline, Line, Circle, Path, Text as SvgText } from 'react-native
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { DatumVeld } from '../components/DatumVeld'
-import { BE_PROVINCIES } from '../lib/belgie'
+import { BE_PROVINCIES, BE_GEWESTEN, BE_LAND } from '../lib/belgie'
 
 const C = {
   bg: '#F7F6FB', card: '#FFFFFF', veld: '#F1EEF9', ink: '#241B3A',
@@ -168,7 +168,10 @@ function BelgieHeatmap() {
     <View>
       <View style={{ width: '100%', aspectRatio: W / H, backgroundColor: '#FBFAFE', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}>
-          {BE_PROVINCIES.map((d, i) => <Path key={'p' + i} d={d} fill="#E7E3F1" stroke="#FFFFFF" strokeWidth={1.2} />)}
+          {BE_PROVINCIES.map((d, i) => <Path key={'p' + i} d={d} fill="#E7E3F1" stroke="#FFFFFF" strokeWidth={1} />)}
+          {BE_GEWESTEN.map((d, i) => <Path key={'g' + i} d={d} fill="none" stroke="#D6CEEC" strokeWidth={1.4} strokeLinejoin="round" />)}
+          <Path d={BE_LAND} fill="none" stroke="#B4A7DC" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+
           {punten.map((p, i) => {
             const rel = p.aantal / maxA
             const r = 6 + Math.sqrt(rel) * 16
