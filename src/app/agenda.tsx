@@ -82,10 +82,11 @@ export default function Agenda() {
     setZoek(term); setGekozen(null); setNieuwMode(false); setMelding('')
     if (term.trim().length < 2) { setResultaten([]); return }
     setZoekBezig(true)
-    const t = term.trim()
+    const t = term.trim().replace(/[%,()]/g, '')
+    if (t.length < 2) { setZoekBezig(false); setResultaten([]); return }
     const { data } = await supabase.from('kermis_reeks')
       .select('id, naam, plaats, postcode')
-      .or(`naam.ilike.%${t}%,plaats.ilike.%${t}%`)
+      .or(`naam.ilike.%${t}%,plaats.ilike.%${t}%,postcode.ilike.%${t}%`)
       .order('naam').limit(8)
     setZoekBezig(false)
     setResultaten((data ?? []) as Reeks[])
@@ -178,7 +179,7 @@ export default function Agenda() {
               <View style={s.zoekVak}>
                 <Text style={s.zoekIcon}>🔎</Text>
                 <TextInput style={s.zoekInput} value={zoek} onChangeText={zoekReeks}
-                  placeholder="Zoek een kermis, bv. Sinksenfoor" placeholderTextColor={C.muted} />
+                  placeholder="Zoek op naam, gemeente of postcode" placeholderTextColor={C.muted} />
                 {zoekBezig ? <ActivityIndicator color={C.violet} /> : null}
               </View>
 
