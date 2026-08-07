@@ -386,7 +386,6 @@ function Home({ session }: { session: Session }) {
 
   const niveaus = [
     { icon: '🎯', titel: 'Ontdekker', waarde: stats.bezocht, basis: [3, 5, 8, 12, 20], kleur: C.coral, eenheid: 'kramen' },
-    { icon: '⭐', titel: 'Spaarder', waarde: stats.punten, basis: [100, 250, 500, 1000], kleur: C.amber, eenheid: 'punten' },
     { icon: '🎪', titel: 'Kermisganger', waarde: checkins, basis: [1, 3, 6, 10, 20], kleur: C.violet, eenheid: 'check-ins' },
   ].map((t) => ({ ...t, ...niveau(t.waarde, t.basis) }))
   const voornaam = naam ? naam.split(' ')[0] : ''
