@@ -1,16 +1,34 @@
 /* Funpoints service worker — offline caching + push-notificaties */
-const VERSION = 'fp-cache-v1'
-const APP_SHELL = ['/', '/manifest.json', '/favicon-48.png', '/icon-192.png', '/icon-512.png']
+const VERSION = 'fp-cache-v2'
+const APP_SHELL = ['/', '/manifest.json', '/favicon.ico', '/favicon-48.png', '/icon-192.png', '/icon-512.png']
 
-// ── Installatie: app-schil vooraf cachen ────────────────────
+// Ontdek en cache álle app-bestanden: de HTML, de CSS, de entry-bundel én
+// de lazy-geladen JS-chunks (die hashes veranderen per build, dus we lezen
+// ze uit de HTML en de bundel i.p.v. ze hard te coderen).
+async function precacheApp(cache) {
+  const urls = new Set(APP_SHELL)
+  try {
+    const html = await fetch('/', { cache: 'no-store' }).then((r) => r.text())
+    for (const m of html.matchAll(/\/_expo\/static\/[^"'\s>]+\.(?:js|css)/g)) urls.add(m[0])
+    // Doorzoek elke JS-bundel op verwijzingen naar verdere chunks.
+    for (const u of [...urls]) {
+      if (u.endsWith('.js')) {
+        try {
+          const t = await fetch(u).then((r) => r.text())
+          for (const m of t.matchAll(/\/?_expo\/static\/[^"'\)\s]+\.js/g)) urls.add('/' + m[0].replace(/^\//, ''))
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  // Cache stuk voor stuk zodat één mislukte fetch de rest niet blokkeert.
+  await Promise.all([...urls].map((u) => cache.add(u).catch(() => {})))
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(APP_SHELL)).catch(() => {})
-  )
+  event.waitUntil(caches.open(VERSION).then((cache) => precacheApp(cache)))
   self.skipWaiting()
 })
 
-// ── Activatie: oude caches opruimen ─────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys()
@@ -19,7 +37,6 @@ self.addEventListener('activate', (event) => {
   })())
 })
 
-// ── Ophalen: navigaties network-first, assets stale-while-revalidate ──
 self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
@@ -45,11 +62,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Statische bestanden (JS-bundel, CSS, fonts, iconen): meteen uit cache
-  // serveren en op de achtergrond verversen.
+  // Gehashte assets (JS/CSS/fonts/iconen) zijn onveranderlijk: eerst uit de
+  // cache serveren, en enkel bij een misser het netwerk proberen en cachen.
   event.respondWith(
     caches.match(req).then((cached) => {
-      const netwerk = fetch(req)
+      if (cached) return cached
+      return fetch(req)
         .then((res) => {
           if (res && res.status === 200 && res.type === 'basic') {
             const copy = res.clone()
@@ -58,7 +76,6 @@ self.addEventListener('fetch', (event) => {
           return res
         })
         .catch(() => cached)
-      return cached || netwerk
     })
   )
 })
