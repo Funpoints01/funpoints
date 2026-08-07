@@ -160,12 +160,27 @@ export default function Acties() {
     setCredits((data as any).credits)
     const { data: fnData, error: fnErr } = await supabase.functions.invoke('verstuur-push', { body: { campagne_id: (data as any).campagne_id } })
     setCampBezig(false)
-    if (fnErr) {
-      let detail = (fnErr as any).message || 'onbekende fout'
-      try { const b = await (fnErr as any).context?.json?.(); if (b?.error) detail = b.error } catch {}
-      setCampMelding({ ok: false, tekst: `Credits afgeboekt, maar verzenden faalde: ${detail}` })
-    } else if ((fnData as any)?.error) {
-      setCampMelding({ ok: false, tekst: `Verzenden faalde: ${(fnData as any).error}` })
+    const mislukt = !!fnErr || !!(fnData as any)?.error || (fnData as any)?.status === 'niets_verzonden'
+    if (mislukt) {
+      // De Edge Function heeft de credits teruggezet → haal het echte saldo opnieuw op.
+      try {
+        const { data: sess } = await supabase.auth.getSession()
+        const uid = sess.session?.user.id
+        if (uid) {
+          const { data: u } = await supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle()
+          if (u) setCredits((u as any).credits)
+        }
+      } catch {}
+      let detail = 'onbekende fout'
+      if (fnErr) {
+        detail = (fnErr as any).message || detail
+        try { const b = await (fnErr as any).context?.json?.(); if (b?.error) detail = b.error } catch {}
+      } else if ((fnData as any)?.error) {
+        detail = (fnData as any).error
+      } else {
+        detail = 'geen bereikbare bezoekers'
+      }
+      setCampMelding({ ok: false, tekst: `Verzenden faalde: ${detail}. Je credits zijn teruggezet.` })
     } else {
       const verz = (fnData as any)?.verzonden
       setCampMelding({ ok: true, tekst: `📣 Verzonden naar ${verz ?? aantal} bezoeker(s). ${aantal} credit(s) gebruikt.` })

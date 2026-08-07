@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 
 // Publieke VAPID-sleutel — veilig om in de client te zetten.
 export const VAPID_PUBLIC =
-  'BESS0by0_nVecXy1MBduTvuF98_AG4co0Uu8vC7L-Dwl_vZSITAcG2sMn8aejQ0lOV_ZWqDSvXyHLz24LDzZeGg'
+  'BL0by1TRw9t9UGeBdUNS3tbyG72gp-0A36YKctxszH01HiKld5lTrTo7PvBKwy56sFiCumC8YwTy8DaPnm0ux3o'
 
 export type PushStatus = 'aan' | 'uit' | 'geblokkeerd' | 'niet'
 

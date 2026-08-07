@@ -41,11 +41,16 @@ Deno.serve(async (req) => {
 
     const { data: subs } = await supa.rpc('campagne_ontvangers', { p_campagne_id: campagne_id })
 
-    webpush.setVapidDetails(
-      Deno.env.get('VAPID_SUBJECT') || 'mailto:info@funpoints.be',
-      Deno.env.get('VAPID_PUBLIC')!,
-      Deno.env.get('VAPID_PRIVATE')!,
-    )
+    try {
+      webpush.setVapidDetails(
+        Deno.env.get('VAPID_SUBJECT') || 'mailto:info@funpoints.be',
+        Deno.env.get('VAPID_PUBLIC')!,
+        Deno.env.get('VAPID_PRIVATE')!,
+      )
+    } catch (e) {
+      await supa.rpc('campagne_terugbetaal', { p_campagne_id: campagne_id })
+      return json({ error: 'PUSH_NIET_GECONFIGUREERD: ' + String(e), terugbetaald: true }, 500)
+    }
 
     const payload = JSON.stringify({
       title: actie?.titel || 'Funpoints',
@@ -68,6 +73,12 @@ Deno.serve(async (req) => {
           await supa.from('push_subscription').delete().eq('endpoint', s.endpoint)
         }
       }
+    }
+
+    if (ok === 0) {
+      // Niets afgeleverd (bv. enkel verlopen endpoints) → credits terugzetten.
+      await supa.rpc('campagne_terugbetaal', { p_campagne_id: campagne_id })
+      return json({ status: 'niets_verzonden', verzonden: 0, mislukt, terugbetaald: true })
     }
 
     await supa
