@@ -6,6 +6,7 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import type { Session } from '@supabase/supabase-js'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -160,6 +161,7 @@ function Home({ session }: { session: Session }) {
   const router = useRouter()
   const [naam, setNaam] = useState('')
   const [code, setCode] = useState<string | null>(null)
+  const [online, setOnline] = useState(true)
   const [isBez, setIsBez] = useState<boolean | null>(null)
   const [kramen, setKramen] = useState<Kraam[]>([])
   const [doelen, setDoelen] = useState<Record<string, { naam: string; punten: number }>>({})
@@ -260,10 +262,21 @@ function Home({ session }: { session: Session }) {
   }
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    setOnline((navigator as any).onLine !== false)
+    const on = () => setOnline(true), off = () => setOnline(false)
+    window.addEventListener('online', on); window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  useEffect(() => {
     (async () => {
+      // Toon de QR meteen uit lokale cache, ook zonder internet.
+      try { const cc = await AsyncStorage.getItem('fp_bezoeker_code'); if (cc) setCode(cc) } catch {}
       const { data: bez } = await supabase.from('bezoeker').select('id, naam, code, postcode, gebruikersnaam')
         .eq('auth_user_id', session.user.id).maybeSingle()
-      setNaam(bez?.naam ?? ''); setCode(bez?.code ?? null); setIsBez(!!bez)
+      setNaam(bez?.naam ?? ''); setIsBez(!!bez)
+      if (bez?.code) { setCode(bez.code); AsyncStorage.setItem('fp_bezoeker_code', bez.code).catch(() => {}) }
       setBezId(bez?.id ?? null); setFNaam(bez?.naam ?? ''); setFPostcode(bez?.postcode ?? '')
       setFGebruikersnaam(bez?.gebruikersnaam ?? '')
 
@@ -553,6 +566,9 @@ function Home({ session }: { session: Session }) {
             Toon deze ene QR aan elk kraam. De foorkramer scant hem en je punten worden
             automatisch bij dàt kraam bijgeschreven of ingeruild — nooit door elkaar.
           </Text>
+          {!online ? (
+            <Text style={s.qrOffline}>📴 Geen internet — je QR werkt gewoon. Je punten verschijnen zodra je terug online bent.</Text>
+          ) : null}
         </View>
       </ScrollView>
       ) : null}
@@ -897,6 +913,7 @@ const s = StyleSheet.create({
   qrBox: { alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line },
   qrWit: { backgroundColor: '#fff', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line },
   qrHint: { color: C.muted, fontSize: 12.5, marginTop: 10, textAlign: 'center', lineHeight: 18 },
+  qrOffline: { color: '#b45309', fontSize: 12.5, fontWeight: '700', textAlign: 'center', marginTop: 12, lineHeight: 18 },
   qrKaart: {
     backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line,
     padding: 22, alignItems: 'center', marginBottom: 18,

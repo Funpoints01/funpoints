@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { CameraView, useCameraPermissions } from 'expo-camera'
+import * as wachtrij from '../lib/boekingWachtrij'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
@@ -235,6 +236,8 @@ function Boeken({ session }: { session: Session }) {
   const [bezig, setBezig] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [klantSaldo, setKlantSaldo] = useState<number | null>(null)
+  const [wachtN, setWachtN] = useState(0)
+  const [online, setOnline] = useState(true)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [voucher, setVoucher] = useState<{ status: string; titel?: string; gebruikt_op?: string } | null>(null)
   const [voucherBezig, setVoucherBezig] = useState(false)
@@ -261,28 +264,72 @@ function Boeken({ session }: { session: Session }) {
       .then(({ data }) => { setNaam(data?.naam ?? null); setNaamLaden(false) })
   }, [])
 
+  useEffect(() => {
+    let actief = true
+    const sync = async () => { const r = await wachtrij.flush(); if (actief) setWachtN(r.resterend) }
+    wachtrij.aantal().then((a) => { if (actief) setWachtN(a) })
+    sync()
+    const naarOnline = () => { setOnline(true); sync() }
+    const naarOffline = () => setOnline(false)
+    if (typeof window !== 'undefined') {
+      setOnline((navigator as any).onLine !== false)
+      window.addEventListener('online', naarOnline)
+      window.addEventListener('offline', naarOffline)
+    }
+    const iv = setInterval(sync, 20000)
+    return () => {
+      actief = false; clearInterval(iv)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', naarOnline)
+        window.removeEventListener('offline', naarOffline)
+      }
+    }
+  }, [])
+
   async function boek(soort: 'toevoegen' | 'aftrekken') {
     const n = parseInt(punten, 10)
     if (!code.trim()) { setMelding({ ok: false, tekst: 'Scan of typ eerst een kaartje-code.' }); return }
     if (!n || n <= 0) { setMelding({ ok: false, tekst: 'Geef een positief aantal punten.' }); return }
     setBezig(true)
     setMelding(null)
-    const { data, error } = isBezoeker
-      ? await supabase.rpc('boek_bezoeker', {
-          p_bezoeker_code: code.trim(), p_punten: n, p_soort: soort,
-        })
-      : await supabase.rpc('boek_punten', {
-          p_punten: n, p_soort: soort, p_kaartje_code: code.trim(),
-        })
-    setBezig(false)
-    if (error) {
-      setMelding({ ok: false, tekst: vertaalFout(error.message) })
-    } else {
-      const teken = soort === 'toevoegen' ? '+' : '−'
-      setMelding({ ok: true, tekst: `${teken}${n} geboekt. Nieuw saldo: ${data} punten.` })
-      setPunten('')
-      setKlantSaldo(data as number)
+
+    // Inwisselen (aftrekken) vereist internet: het saldo moet geverifieerd
+    // worden. Sparen (toevoegen) werkt offline via de wachtrij.
+    if (soort === 'aftrekken') {
+      const { data, error } = isBezoeker
+        ? await supabase.rpc('boek_bezoeker', { p_bezoeker_code: code.trim(), p_punten: n, p_soort: soort })
+        : await supabase.rpc('boek_punten', { p_punten: n, p_soort: soort, p_kaartje_code: code.trim() })
+      setBezig(false)
+      if (error) {
+        setMelding({ ok: false, tekst: wachtrij.isOffline() ? 'Inwisselen kan enkel met internet.' : vertaalFout(error.message) })
+      } else {
+        setMelding({ ok: true, tekst: `−${n} geboekt. Nieuw saldo: ${data} punten.` })
+        setPunten(''); setKlantSaldo(data as number)
+      }
+      return
     }
+
+    // Sparen: offline-first. Zet in de wachtrij, probeer meteen te syncen.
+    const item: wachtrij.Boeking = {
+      client_id: wachtrij.nieuwId(),
+      drager: isBezoeker ? 'bezoeker' : 'kaartje',
+      code: code.trim(),
+      punten: n,
+      soort: 'toevoegen',
+      geboekt_op: new Date().toISOString(),
+    }
+    await wachtrij.voegToe(item)
+    const res = await wachtrij.flush()
+    setBezig(false)
+    setWachtN(res.resterend)
+    const saldo = res.saldo[item.client_id]
+    if (typeof saldo === 'number') {
+      setMelding({ ok: true, tekst: `+${n} geboekt. Nieuw saldo: ${saldo} punten.` })
+      setKlantSaldo(saldo)
+    } else {
+      setMelding({ ok: true, tekst: `+${n} genoteerd — geen internet, wordt automatisch gesynchroniseerd.` })
+    }
+    setPunten('')
   }
 
   if (voucherBezig) {
@@ -357,6 +404,18 @@ function Boeken({ session }: { session: Session }) {
             : naam ? `Attractie: ${naam}`
             : 'Let op: deze login is aan geen attractie gekoppeld.'}
         </Text>
+
+        {(!online || wachtN > 0) ? (
+          <View style={s.syncBalk}>
+            <Text style={s.syncT}>
+              {online
+                ? `🔄 ${wachtN} boeking(en) worden gesynchroniseerd…`
+                : wachtN > 0
+                  ? `📴 Geen internet · ${wachtN} boeking(en) in wachtrij — sparen werkt gewoon door`
+                  : '📴 Geen internet — sparen werkt gewoon door, inwisselen niet'}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={s.kaart}>
           <Pressable style={[s.knop, s.knopGroen, { marginTop: 0 }]} onPress={() => setScannerOpen(true)}>
@@ -493,4 +552,6 @@ const s = StyleSheet.create({
   vKnop: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 14, paddingVertical: 15, paddingHorizontal: 24, marginTop: 32, alignSelf: 'stretch', alignItems: 'center' },
   vKnopT: { color: '#fff', fontWeight: '800', fontSize: 16 },
   vKlaar: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 15 },
+  syncBalk: { backgroundColor: 'rgba(16,185,129,0.10)', borderColor: 'rgba(16,185,129,0.30)', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
+  syncT: { color: '#0f766e', fontSize: 13, fontWeight: '700' },
 })
