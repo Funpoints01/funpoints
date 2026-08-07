@@ -64,13 +64,16 @@ export function isOffline(): boolean {
 // nieuwe saldo terug. Boekingen die de server verwerkte (ok/dubbel/geweigerd)
 // worden uit de wachtrij verwijderd; enkel wat de server nooit zag (netwerk-
 // fout) blijft staan voor een volgende poging.
-export async function flush(): Promise<{ gesynct: number; resterend: number; saldo: Record<string, number> }> {
+export async function flush(): Promise<{ gesynct: number; resterend: number; saldo: Record<string, number>; fout?: string }> {
   const lijst = await lees()
   if (lijst.length === 0) return { gesynct: 0, resterend: 0, saldo: {} }
   if (isOffline()) return { gesynct: 0, resterend: lijst.length, saldo: {} }
 
   const { data, error } = await supabase.rpc('boek_batch', { p_boekingen: lijst })
-  if (error || !data) return { gesynct: 0, resterend: lijst.length, saldo: {} }
+  // Online, maar de server gaf een fout: dit is géén offline-situatie maar een
+  // echt probleem (bv. functie ontbreekt). Meld dat i.p.v. "geen internet".
+  if (error) return { gesynct: 0, resterend: lijst.length, saldo: {}, fout: error.message }
+  if (!data) return { gesynct: 0, resterend: lijst.length, saldo: {}, fout: 'Lege respons van de server.' }
 
   const details = ((data as any).details ?? []) as { client_id: string; status: string; saldo?: number }[]
   const afgehandeld = new Set(details.map((d) => d.client_id))

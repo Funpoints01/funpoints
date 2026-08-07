@@ -326,6 +326,9 @@ function Boeken({ session }: { session: Session }) {
     if (typeof saldo === 'number') {
       setMelding({ ok: true, tekst: `+${n} geboekt. Nieuw saldo: ${saldo} punten.` })
       setKlantSaldo(saldo)
+    } else if (res.fout) {
+      // Online, maar de server weigerde: toon de echte fout (staat in wachtrij).
+      setMelding({ ok: false, tekst: `Nog niet geboekt — server gaf een fout: ${res.fout}` })
     } else {
       setMelding({ ok: true, tekst: `+${n} genoteerd — geen internet, wordt automatisch gesynchroniseerd.` })
     }
