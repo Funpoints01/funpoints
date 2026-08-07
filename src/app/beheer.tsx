@@ -614,7 +614,7 @@ function kaartBackHtml(qr: string) {
   return `<div class="cell"><div class="kaart back"><div class="streep"><div class="woordW"><span class="fmarkSm">F</span>Funpoints</div></div><div class="inhoud"><div class="links"><h2>Activeer je kaart</h2><div class="stappen"><div class="stap"><div class="stapN">1</div><div class="stapT">Scan deze QR met je telefoon</div></div><div class="stap"><div class="stapN">2</div><div class="stapT">Maak in 10 sec. je account</div></div><div class="stap"><div class="stapN">3</div><div class="stapT">Je gespaarde punten staan klaar</div></div></div><div class="url">app.funpoints.be</div></div><div class="qrPaneel"><div class="qrHouder">${qr}<div class="qrLogo">F</div></div><div class="scanHint">Activeer</div></div></div></div></div>`
 }
 
-async function printKaartjes(codes: string[], win: any) {
+async function printKaartjes(paren: { code: string; claim: string }[], win: any) {
   if (!win) return
   try {
     const QR = (await import('qrcode')).default as any
@@ -622,10 +622,10 @@ async function printKaartjes(codes: string[], win: any) {
     const opt = { type: 'svg', errorCorrectionLevel: 'H', margin: 2, color: { dark: '#241B3A', light: '#ffffff' } }
     const fronts: string[] = []
     const backs: string[] = []
-    for (const c of codes) {
-      const fq = await QR.toString(c, opt)
-      const bq = await QR.toString(REG + c, opt)
-      fronts.push(kaartFrontHtml(c.slice(0, 5) + ' · ' + c.slice(5), fq))
+    for (const p of paren) {
+      const fq = await QR.toString(p.code, opt)
+      const bq = await QR.toString(REG + p.claim, opt)
+      fronts.push(kaartFrontHtml(p.code.slice(0, 5) + ' · ' + p.code.slice(5), fq))
       backs.push(kaartBackHtml(bq))
     }
     const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>Funpoints kaartjes</title><style>${KAART_CSS}</style></head><body><div class="vel"><div class="veltitel">Voorkanten — knip langs de stippellijn (85,6 × 54 mm)</div><div class="grid">${fronts.join('')}</div></div><div class="vel"><div class="veltitel">Achterkanten</div><div class="grid">${backs.join('')}</div></div></body></html>`
@@ -662,18 +662,18 @@ function Kaartjes() {
     const { data, error } = await supabase.rpc('mgmt_kaartjes_aanmaken', { p_aantal: n })
     setBezig(false)
     if (error) { setMelding('Aanmaken mislukt: ' + error.message); if (win) win.close(); return }
-    const codes = (data ?? []).map((r: any) => r.code)
+    const paren = (data ?? []).map((r: any) => ({ code: r.code, claim: r.claim_code }))
     await herlaad()
-    setMelding(codes.length + ' kaartjes aangemaakt. Het printvenster opent.')
-    printKaartjes(codes, win)
+    setMelding(paren.length + ' kaartjes aangemaakt. Het printvenster opent.')
+    printKaartjes(paren, win)
   }
 
   async function printBatch(id: string) {
     const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
     if (win) win.document.write('<p style="font-family:sans-serif;padding:24px">Kaartjes worden geladen…</p>')
     const { data } = await supabase.rpc('mgmt_kaartje_codes', { p_batch_id: id })
-    const codes = (data ?? []).map((r: any) => r.code)
-    if (codes.length) printKaartjes(codes, win); else if (win) win.close()
+    const paren = (data ?? []).map((r: any) => ({ code: r.code, claim: r.claim_code }))
+    if (paren.length) printKaartjes(paren, win); else if (win) win.close()
   }
 
   return (
