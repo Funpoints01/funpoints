@@ -199,8 +199,8 @@ function BelgieHeatmap() {
 
 function Dashboard() {
   const router = useRouter()
-  const [tab, setTab] = useState<'overzicht' | 'financieel' | 'uitbaters' | 'attracties' | 'kermissen'>('overzicht')
-  const LABEL = { overzicht: 'Overzicht', financieel: 'Financieel', uitbaters: 'Uitbaters', attracties: 'Attracties', kermissen: 'Kermissen' } as const
+  const [tab, setTab] = useState<'overzicht' | 'financieel' | 'uitbaters' | 'kaartjes' | 'attracties' | 'kermissen'>('overzicht')
+  const LABEL = { overzicht: 'Overzicht', financieel: 'Financieel', uitbaters: 'Uitbaters', kaartjes: 'Kaartjes', attracties: 'Attracties', kermissen: 'Kermissen' } as const
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={s.wrap}>
@@ -209,7 +209,7 @@ function Dashboard() {
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} hitSlop={8}><Text style={s.uitlog}>Uitloggen</Text></Pressable>
         </View>
         <View style={s.tabs}>
-          {(['overzicht', 'financieel', 'uitbaters', 'attracties', 'kermissen'] as const).map((t) => (
+          {(['overzicht', 'financieel', 'uitbaters', 'kaartjes', 'attracties', 'kermissen'] as const).map((t) => (
             <Pressable key={t} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabAan]}>
               <Text style={[s.tabT, tab === t && s.tabTAan]}>{LABEL[t]}</Text>
             </Pressable>
@@ -218,6 +218,7 @@ function Dashboard() {
         {tab === 'overzicht' ? <Overzicht />
           : tab === 'financieel' ? <Financieel />
           : tab === 'uitbaters' ? <Uitbaters />
+          : tab === 'kaartjes' ? <Kaartjes />
           : tab === 'attracties' ? <Attracties />
           : <Kermissen />}
       </ScrollView>
@@ -559,6 +560,161 @@ function Kermissen() {
     </View>
   )
 }
+
+
+const KAART_FERRIS = '<svg class="ferris" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="60" cy="52" r="42"/><circle cx="60" cy="52" r="7"/><line x1="60" y1="52" x2="102" y2="52"/><circle cx="102" cy="52" r="6"/><line x1="60" y1="52" x2="89.7" y2="81.7"/><circle cx="89.7" cy="81.7" r="6"/><line x1="60" y1="52" x2="60" y2="94"/><circle cx="60" cy="94" r="6"/><line x1="60" y1="52" x2="30.3" y2="81.7"/><circle cx="30.3" cy="81.7" r="6"/><line x1="60" y1="52" x2="18" y2="52"/><circle cx="18" cy="52" r="6"/><line x1="60" y1="52" x2="30.3" y2="22.3"/><circle cx="30.3" cy="22.3" r="6"/><line x1="60" y1="52" x2="60" y2="10"/><circle cx="60" cy="10" r="6"/><line x1="60" y1="52" x2="89.7" y2="22.3"/><circle cx="89.7" cy="22.3" r="6"/><path d="M40 90 L60 59 L80 90"/><line x1="30" y1="90" x2="90" y2="90"/></svg>'
+
+const KAART_CSS = `
+@page{ size:A4; margin:14mm; }
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+body{ font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+.vel{ break-after:page; } .vel:last-child{ break-after:auto; }
+.veltitel{ font-size:11pt; font-weight:800; color:#555; margin-bottom:6mm; }
+.grid{ display:flex; flex-wrap:wrap; gap:0; }
+.cell{ width:85.6mm; height:54mm; position:relative; outline:0.2mm dashed #b9b3c9; }
+.kaart{ width:85.6mm; height:54mm; overflow:hidden; position:relative; }
+.front{ background:radial-gradient(120% 140% at 82% -10%,rgba(255,255,255,.22),transparent 45%),linear-gradient(140deg,#12c48d 0%,#10B981 42%,#047857 100%); color:#fff; display:flex; }
+.front .ferris{ position:absolute; width:50mm; height:50mm; right:-13mm; bottom:-15mm; color:#fff; opacity:.10; }
+.dots{ position:absolute; inset:0; opacity:.10; background-image:radial-gradient(#fff 1.1px,transparent 1.2px); background-size:6mm 6mm; }
+.front .inhoud{ position:relative; z-index:2; flex:1; display:flex; padding:5mm; gap:3.5mm; }
+.links{ flex:1; display:flex; flex-direction:column; }
+.merk{ display:flex; align-items:center; gap:2mm; }
+.fmark{ width:8mm; height:8mm; border-radius:2.1mm; background:#fff; color:#059669; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:5.4mm; }
+.woord{ font-weight:800; font-size:4.4mm; letter-spacing:-.2px; }
+.kop{ margin-top:auto; }
+.kop .groot{ font-size:5.4mm; font-weight:900; line-height:1.04; letter-spacing:-.3px; }
+.kop .klein{ margin-top:1.4mm; font-size:2.7mm; font-weight:600; color:rgba(255,255,255,.92); max-width:38mm; line-height:1.3; }
+.qrPaneel{ background:#fff; border-radius:2.6mm; padding:2.4mm; display:flex; flex-direction:column; align-items:center; gap:1.2mm; align-self:center; }
+.qrHouder{ position:relative; width:26mm; height:26mm; }
+.qrHouder svg{ width:100%; height:100%; display:block; }
+.qrLogo{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:6mm; height:6mm; border-radius:1.6mm; background:#10B981; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:3.7mm; border:.7mm solid #fff; }
+.code{ font-weight:800; font-size:2.9mm; letter-spacing:1px; color:#241B3A; }
+.scanHint{ font-size:2.1mm; font-weight:700; color:#059669; text-transform:uppercase; letter-spacing:.6px; }
+.back{ background:#FFF8F0; color:#241B3A; display:flex; }
+.back .streep{ position:absolute; top:0; left:0; right:0; height:9mm; background:linear-gradient(90deg,#10B981,#35d29b); }
+.back .streep .woordW{ color:#fff; font-weight:800; font-size:3.5mm; display:flex; align-items:center; gap:1.4mm; height:9mm; padding-left:5mm; }
+.back .fmarkSm{ width:5mm; height:5mm; border-radius:1.3mm; background:#fff; color:#059669; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:3.2mm; }
+.back .inhoud{ position:relative; z-index:2; flex:1; display:flex; padding:5mm; padding-top:11mm; gap:3.5mm; }
+.back h2{ font-size:4.4mm; font-weight:900; letter-spacing:-.3px; }
+.stappen{ margin-top:2mm; display:flex; flex-direction:column; gap:1.5mm; }
+.stap{ display:flex; align-items:center; gap:1.8mm; }
+.stapN{ width:4.4mm; height:4.4mm; border-radius:50%; background:#10B981; color:#fff; font-weight:900; font-size:2.6mm; display:flex; align-items:center; justify-content:center; flex:none; }
+.stapT{ font-size:2.65mm; font-weight:600; color:#3d3457; line-height:1.2; }
+.url{ margin-top:auto; font-size:2.7mm; font-weight:800; color:#059669; }
+.back .qrPaneel{ background:#fff; border:1px solid rgba(36,27,58,.10); }
+.back .qrHouder{ width:25mm; height:25mm; }
+.back .qrLogo{ background:#8B5CF6; }
+.back .scanHint{ color:#8B5CF6; }
+`
+
+function kaartFrontHtml(disp: string, qr: string) {
+  return `<div class="cell"><div class="kaart front"><div class="dots"></div>${KAART_FERRIS}<div class="inhoud"><div class="links"><div class="merk"><div class="fmark">F</div><div class="woord">Funpoints</div></div><div class="kop"><div class="groot">Spaar<br>punten<br>op de kermis</div><div class="klein">Toon dit kaartje aan de foorkramer bij elk kraam.</div></div></div><div class="qrPaneel"><div class="qrHouder">${qr}<div class="qrLogo">F</div></div><div class="code">${disp}</div><div class="scanHint">Scan mij</div></div></div></div></div>`
+}
+function kaartBackHtml(qr: string) {
+  return `<div class="cell"><div class="kaart back"><div class="streep"><div class="woordW"><span class="fmarkSm">F</span>Funpoints</div></div><div class="inhoud"><div class="links"><h2>Activeer je kaart</h2><div class="stappen"><div class="stap"><div class="stapN">1</div><div class="stapT">Scan deze QR met je telefoon</div></div><div class="stap"><div class="stapN">2</div><div class="stapT">Maak in 10 sec. je account</div></div><div class="stap"><div class="stapN">3</div><div class="stapT">Je gespaarde punten staan klaar</div></div></div><div class="url">app.funpoints.be</div></div><div class="qrPaneel"><div class="qrHouder">${qr}<div class="qrLogo">F</div></div><div class="scanHint">Activeer</div></div></div></div></div>`
+}
+
+async function printKaartjes(codes: string[], win: any) {
+  if (!win) return
+  try {
+    const QR = (await import('qrcode')).default as any
+    const REG = 'https://app.funpoints.be/registreer?code='
+    const opt = { type: 'svg', errorCorrectionLevel: 'H', margin: 2, color: { dark: '#241B3A', light: '#ffffff' } }
+    const fronts: string[] = []
+    const backs: string[] = []
+    for (const c of codes) {
+      const fq = await QR.toString(c, opt)
+      const bq = await QR.toString(REG + c, opt)
+      fronts.push(kaartFrontHtml(c.slice(0, 5) + ' · ' + c.slice(5), fq))
+      backs.push(kaartBackHtml(bq))
+    }
+    const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>Funpoints kaartjes</title><style>${KAART_CSS}</style></head><body><div class="vel"><div class="veltitel">Voorkanten — knip langs de stippellijn (85,6 × 54 mm)</div><div class="grid">${fronts.join('')}</div></div><div class="vel"><div class="veltitel">Achterkanten</div><div class="grid">${backs.join('')}</div></div></body></html>`
+    win.document.open(); win.document.write(html); win.document.close()
+    win.focus()
+    setTimeout(() => { try { win.print() } catch (e) {} }, 500)
+  } catch (e) {
+    try { win.document.body.innerText = 'Kon de kaartjes niet genereren: ' + String(e) } catch (e2) {}
+  }
+}
+
+function Kaartjes() {
+  const [ov, setOv] = useState<any>(null)
+  const [batches, setBatches] = useState<any[]>([])
+  const [aantal, setAantal] = useState('50')
+  const [bezig, setBezig] = useState(false)
+  const [melding, setMelding] = useState('')
+
+  async function herlaad() {
+    const [{ data: o }, { data: b }] = await Promise.all([
+      supabase.rpc('mgmt_kaartjes_overzicht'), supabase.rpc('mgmt_kaartjes_batches'),
+    ])
+    setOv(o); setBatches(b ?? [])
+  }
+  useEffect(() => { herlaad() }, [])
+
+  async function genereer() {
+    const n = parseInt(aantal, 10)
+    if (!n || n < 1) { setMelding('Geef een geldig aantal.'); return }
+    if (n > 2000) { setMelding('Maximum 2000 per keer.'); return }
+    const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
+    if (win) win.document.write('<p style="font-family:sans-serif;padding:24px">Kaartjes worden aangemaakt…</p>')
+    setBezig(true); setMelding('')
+    const { data, error } = await supabase.rpc('mgmt_kaartjes_aanmaken', { p_aantal: n })
+    setBezig(false)
+    if (error) { setMelding('Aanmaken mislukt: ' + error.message); if (win) win.close(); return }
+    const codes = (data ?? []).map((r: any) => r.code)
+    await herlaad()
+    setMelding(codes.length + ' kaartjes aangemaakt. Het printvenster opent.')
+    printKaartjes(codes, win)
+  }
+
+  async function printBatch(id: string) {
+    const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
+    if (win) win.document.write('<p style="font-family:sans-serif;padding:24px">Kaartjes worden geladen…</p>')
+    const { data } = await supabase.rpc('mgmt_kaartje_codes', { p_batch_id: id })
+    const codes = (data ?? []).map((r: any) => r.code)
+    if (codes.length) printKaartjes(codes, win); else if (win) win.close()
+  }
+
+  return (
+    <View style={{ marginTop: 4 }}>
+      <View style={s.tegels}>
+        <View style={s.tegel}><Text style={s.tegelNum}>{ov?.totaal ?? 0}</Text><Text style={s.tegelLbl}>Kaartjes totaal</Text></View>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.amber }]}>{ov?.slapend ?? 0}</Text><Text style={s.tegelLbl}>Slapend</Text></View>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{ov?.geactiveerd ?? 0}</Text><Text style={s.tegelLbl}>Geactiveerd</Text></View>
+      </View>
+
+      <View style={s.blok}>
+        <Text style={s.blokTitel}>Nieuwe reeks kaartjes</Text>
+        <Text style={s.blokSub}>Maakt slapende kaartjes met unieke codes aan en opent meteen een A4 om te printen en te knippen (85,6 × 54 mm).</Text>
+        <Text style={[s.label, { marginTop: 12 }]}>Aantal</Text>
+        <View style={s.rij}>
+          <TextInput style={[s.input, { flex: 1 }]} value={aantal} onChangeText={setAantal} keyboardType="number-pad" placeholder="bv. 50" placeholderTextColor={C.muted} />
+          <Pressable onPress={genereer} disabled={bezig} style={[s.knop, { flex: 1.4 }, bezig && { opacity: 0.5 }]}>
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopT}>Genereer &amp; print</Text>}
+          </Pressable>
+        </View>
+        {melding ? <Text style={[s.blokSub, { marginTop: 12, fontWeight: '700', color: C.ink }]}>{melding}</Text> : null}
+      </View>
+
+      <Text style={[s.blokTitel, { marginTop: 20, marginBottom: 8 }]}>Eerdere reeksen</Text>
+      {batches.length === 0 ? <View style={s.blok}><Text style={s.leeg}>Nog geen reeksen aangemaakt.</Text></View> : (
+        <View style={{ gap: 10 }}>
+          {batches.map((b: any) => (
+            <View key={b.id} style={[s.blok, s.kermRij]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.attrNaam}>{b.aantal} kaartjes</Text>
+                <Text style={s.attrSub}>{toonDatum(String(b.aangemaakt_op).slice(0, 10))} · {b.geactiveerd} geactiveerd</Text>
+              </View>
+              <Pressable onPress={() => printBatch(b.id)} hitSlop={6}><Text style={s.wijzig}>Print</Text></Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+
 
 const s = StyleSheet.create({
   scherm: { flex: 1, backgroundColor: C.bg },
