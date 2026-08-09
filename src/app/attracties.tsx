@@ -40,6 +40,13 @@ export default function Attracties() {
   const [pPunten, setPPunten] = useState('')
   const [pBezig, setPBezig] = useState(false)
 
+  const [emails, setEmails] = useState<Record<string, string>>({})
+  const [resetVoor, setResetVoor] = useState<string | null>(null)
+  const [rWw, setRWw] = useState('')
+  const [rBezig, setRBezig] = useState(false)
+  const [rFout, setRFout] = useState('')
+  const [gelukt, setGelukt] = useState<string | null>(null)
+
   async function bewaarPrijs(attractieId: string) {
     setPBezig(true)
     const n = pPunten.trim() ? parseInt(pPunten, 10) : null
@@ -56,7 +63,15 @@ export default function Attracties() {
     const { data: u } = await supabase.from('uitbater').select('id').eq('auth_user_id', session!.user.id).maybeSingle()
     setUitbaterId(u?.id ?? null)
     const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten').order('naam')
-    setAttracties((att ?? []) as Attr[])
+    const lijst = (att ?? []) as Attr[]
+    setAttracties(lijst)
+    const paren = await Promise.all(
+      lijst.filter((x) => x.auth_user_id).map(async (x) => {
+        const { data: em } = await supabase.rpc('attractie_login_email', { p_attractie_id: x.id })
+        return [x.id, (em as string) ?? ''] as const
+      }),
+    )
+    setEmails(Object.fromEntries(paren))
     setLaden(false)
   }
   useEffect(() => { if (session) herlaad() }, [session])
@@ -75,6 +90,16 @@ export default function Attracties() {
   async function verwijder(id: string) {
     await supabase.from('attractie').delete().eq('id', id)
     setBevestigDel(null); setAttracties((a) => a.filter((x) => x.id !== id))
+  }
+
+  async function resetWw(attractieId: string) {
+    setRFout('')
+    if (rWw.length < 6) return setRFout('Wachtwoord minstens 6 tekens.')
+    setRBezig(true)
+    const { error } = await supabase.rpc('attractie_login_reset_ww', { p_attractie_id: attractieId, p_nieuw_ww: rWw })
+    setRBezig(false)
+    if (error) return setRFout('Resetten mislukt. Probeer opnieuw.')
+    setResetVoor(null); setRWw(''); setGelukt(attractieId)
   }
 
   async function loginAanmaken(attractieId: string) {
@@ -180,6 +205,41 @@ export default function Attracties() {
                 </Pressable>
               )}
 
+              {a.auth_user_id ? (
+                resetVoor === a.id ? (
+                  <View style={s.loginVak}>
+                    <Text style={s.blokTitel}>🔑 Wachtwoord resetten</Text>
+                    <Text style={s.loginEmail}>{emails[a.id] || 'foorkramer-login'}</Text>
+                    <Text style={[s.label, { marginTop: 12 }]}>Nieuw wachtwoord</Text>
+                    <TextInput style={s.input} value={rWw} onChangeText={setRWw}
+                      secureTextEntry placeholder="minstens 6 tekens" placeholderTextColor={C.muted} />
+                    {rFout ? <View style={s.foutBox}><Text style={s.foutT}>{rFout}</Text></View> : null}
+                    <View style={s.rij}>
+                      <Pressable onPress={() => resetWw(a.id)} disabled={rBezig}
+                        style={[s.knop, s.knopViolet, s.knopHalf, rBezig && s.knopUit]}>
+                        {rBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Opslaan</Text>}
+                      </Pressable>
+                      <Pressable onPress={() => { setResetVoor(null); setRFout('') }} style={[s.knop, s.knopWit, s.knopHalf]}>
+                        <Text style={s.knopWitT}>Annuleren</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={s.tip}>De foorkramer logt daarna in met dit e-mailadres en het nieuwe wachtwoord.</Text>
+                  </View>
+                ) : (
+                  <View style={s.loginInfo}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.loginInfoLabel}>Foorkramer-login</Text>
+                      <Text style={s.loginInfoEmail} selectable>{emails[a.id] || 'e-mail laden…'}</Text>
+                      {gelukt === a.id ? <Text style={s.okT}>✓ Nieuw wachtwoord ingesteld</Text> : null}
+                    </View>
+                    <Pressable onPress={() => { setResetVoor(a.id); setRWw(''); setRFout(''); setGelukt(null) }}
+                      style={s.knopKlein}>
+                      <Text style={s.knopKleinT}>Wachtwoord resetten</Text>
+                    </Pressable>
+                  </View>
+                )
+              ) : null}
+
               {loginVoor === a.id ? (
                 <View style={s.loginVak}>
                   <Text style={s.label}>E-mail voor de foorkramer</Text>
@@ -275,4 +335,12 @@ const s = StyleSheet.create({
   prijsKnopT: { color: C.violet, fontWeight: '800', fontSize: 13.5 },
   tip: { color: C.muted, fontSize: 12, marginTop: 10 },
   voet: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 20, opacity: 0.8 },
+  loginEmail: { color: C.ink, fontSize: 14, fontWeight: '700', marginTop: 6 },
+  loginInfo: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12,
+    backgroundColor: C.veld, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  loginInfoLabel: { color: C.muted, fontSize: 11.5, fontWeight: '700' },
+  loginInfoEmail: { color: C.ink, fontSize: 14.5, fontWeight: '700', marginTop: 2 },
+  okT: { color: C.green, fontSize: 12.5, fontWeight: '700', marginTop: 6 },
 })
