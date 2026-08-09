@@ -16,6 +16,8 @@ const C = {
   line: 'rgba(36,27,58,0.10)', violet: '#8B5CF6',
 }
 
+const PRESETS = [10, 25, 50, 100, 250, 500]
+
 const isWeb = Platform.OS === 'web'
 const isStandalonePWA =
   isWeb && typeof window !== 'undefined' &&
@@ -286,8 +288,8 @@ function Boeken({ session }: { session: Session }) {
     }
   }, [])
 
-  async function boek(soort: 'toevoegen' | 'aftrekken') {
-    const n = parseInt(punten, 10)
+  async function boek(soort: 'toevoegen' | 'aftrekken', bedrag?: number) {
+    const n = bedrag ?? parseInt(punten, 10)
     if (!code.trim()) { setMelding({ ok: false, tekst: 'Scan of typ eerst een kaartje-code.' }); return }
     if (!n || n <= 0) { setMelding({ ok: false, tekst: 'Geef een positief aantal punten.' }); return }
     setBezig(true)
@@ -447,7 +449,17 @@ function Boeken({ session }: { session: Session }) {
             </View>
           ) : null}
 
-          <Text style={[s.label, { marginTop: 14 }]}>Aantal punten</Text>
+          <Text style={[s.label, { marginTop: 18 }]}>Snel toevoegen</Text>
+          <View style={s.presetGrid}>
+            {PRESETS.map((p) => (
+              <Pressable key={p} onPress={() => boek('toevoegen', p)} disabled={bezig}
+                style={[s.presetKnop, bezig && s.knopUit]}>
+                <Text style={s.presetT}>+{p}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 18 }]}>Of een ander aantal</Text>
           <TextInput
             style={s.input} value={punten} onChangeText={setPunten}
             keyboardType="number-pad" placeholder="bv. 50" placeholderTextColor={C.muted}
@@ -562,4 +574,11 @@ const s = StyleSheet.create({
   vKlaar: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 15 },
   syncBalk: { backgroundColor: 'rgba(16,185,129,0.10)', borderColor: 'rgba(16,185,129,0.30)', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
   syncT: { color: '#0f766e', fontSize: 13, fontWeight: '700' },
+  presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  presetKnop: {
+    flexGrow: 1, flexBasis: '30%', minWidth: 92, backgroundColor: 'rgba(16,185,129,0.10)',
+    borderWidth: 1.5, borderColor: 'rgba(16,185,129,0.35)', borderRadius: 14,
+    paddingVertical: 20, alignItems: 'center', justifyContent: 'center',
+  },
+  presetT: { color: C.greend, fontSize: 22, fontWeight: '900' },
 })
