@@ -243,6 +243,7 @@ function Boeken({ session }: { session: Session }) {
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [voucher, setVoucher] = useState<{ status: string; titel?: string; gebruikt_op?: string } | null>(null)
   const [voucherBezig, setVoucherBezig] = useState(false)
+  const [presets, setPresets] = useState<number[]>(PRESETS)
 
   async function wisselVoucher(vcode: string) {
     setVoucherBezig(true)
@@ -261,9 +262,13 @@ function Boeken({ session }: { session: Session }) {
   }
 
   useEffect(() => {
-    supabase.from('attractie').select('naam')
+    supabase.from('attractie').select('naam, snelknoppen')
       .eq('auth_user_id', session.user.id).maybeSingle()
-      .then(({ data }) => { setNaam(data?.naam ?? null); setNaamLaden(false) })
+      .then(({ data }) => {
+        setNaam(data?.naam ?? null)
+        if (data?.snelknoppen && (data.snelknoppen as number[]).length) setPresets(data.snelknoppen as number[])
+        setNaamLaden(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -449,17 +454,21 @@ function Boeken({ session }: { session: Session }) {
             </View>
           ) : null}
 
-          <Text style={[s.label, { marginTop: 18 }]}>Snel toevoegen</Text>
-          <View style={s.presetGrid}>
-            {PRESETS.map((p) => (
-              <Pressable key={p} onPress={() => boek('toevoegen', p)} disabled={bezig}
-                style={[s.presetKnop, bezig && s.knopUit]}>
-                <Text style={s.presetT}>+{p}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {presets.length > 0 ? (
+            <>
+              <Text style={[s.label, { marginTop: 18 }]}>Snel toevoegen</Text>
+              <View style={s.presetGrid}>
+                {presets.map((p, i) => (
+                  <Pressable key={`${p}-${i}`} onPress={() => boek('toevoegen', p)} disabled={bezig}
+                    style={[s.presetKnop, bezig && s.knopUit]}>
+                    <Text style={s.presetT}>+{p}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
 
-          <Text style={[s.label, { marginTop: 18 }]}>Of een ander aantal</Text>
+          <Text style={[s.label, { marginTop: 18 }]}>{presets.length > 0 ? 'Of een ander aantal' : 'Aantal punten'}</Text>
           <TextInput
             style={s.input} value={punten} onChangeText={setPunten}
             keyboardType="number-pad" placeholder="bv. 50" placeholderTextColor={C.muted}

@@ -14,7 +14,7 @@ const C = {
 }
 const SOORTEN = ['lunapark', 'schietkraam', 'eendjes', 'ander'] as const
 
-type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null; hoofdprijs_naam: string | null; hoofdprijs_punten: number | null }
+type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null; hoofdprijs_naam: string | null; hoofdprijs_punten: number | null; snelknoppen: number[] | null }
 
 export default function Attracties() {
   const router = useRouter()
@@ -39,6 +39,9 @@ export default function Attracties() {
   const [pNaam, setPNaam] = useState('')
   const [pPunten, setPPunten] = useState('')
   const [pBezig, setPBezig] = useState(false)
+  const [snelVoor, setSnelVoor] = useState<string | null>(null)
+  const [snelText, setSnelText] = useState('')
+  const [snelBezig, setSnelBezig] = useState(false)
 
   const [emails, setEmails] = useState<Record<string, string>>({})
   const [resetVoor, setResetVoor] = useState<string | null>(null)
@@ -57,12 +60,22 @@ export default function Attracties() {
     if (!error) { setPrijsVoor(null); herlaad() }
   }
 
+  async function bewaarSnel(attractieId: string) {
+    setSnelBezig(true)
+    const nums = Array.from(new Set(
+      snelText.split(/[^0-9]+/).map((x) => parseInt(x, 10)).filter((n) => Number.isInteger(n) && n > 0)
+    )).sort((x, y) => x - y).slice(0, 8)
+    const { error } = await supabase.from('attractie').update({ snelknoppen: nums }).eq('id', attractieId)
+    setSnelBezig(false)
+    if (!error) { setSnelVoor(null); herlaad() }
+  }
+
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
   async function herlaad() {
     const { data: u } = await supabase.from('uitbater').select('id').eq('auth_user_id', session!.user.id).maybeSingle()
     setUitbaterId(u?.id ?? null)
-    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten').order('naam')
+    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten, snelknoppen').order('naam')
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
     const paren = await Promise.all(
@@ -201,6 +214,33 @@ export default function Attracties() {
                     🎁 {a.hoofdprijs_naam && a.hoofdprijs_punten
                       ? `${a.hoofdprijs_naam} · ${a.hoofdprijs_punten} ptn — wijzigen`
                       : 'Hoofdprijs instellen'}
+                  </Text>
+                </Pressable>
+              )}
+
+              {snelVoor === a.id ? (
+                <View style={s.loginVak}>
+                  <Text style={s.blokTitel}>⚡ Snelknoppen</Text>
+                  <Text style={s.tip}>Bedragen die de kraamhouder met één tik boekt. Komma-gescheiden.</Text>
+                  <TextInput style={[s.input, { marginTop: 10 }]} value={snelText} onChangeText={setSnelText}
+                    keyboardType="numbers-and-punctuation" placeholder="bv. 5, 25, 100, 500" placeholderTextColor={C.muted} />
+                  <View style={s.rij}>
+                    <Pressable onPress={() => bewaarSnel(a.id)} disabled={snelBezig} style={[s.knop, s.knopViolet, s.knopHalf, snelBezig && s.knopUit]}>
+                      {snelBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Opslaan</Text>}
+                    </Pressable>
+                    <Pressable onPress={() => setSnelVoor(null)} style={[s.knop, s.knopWit, s.knopHalf]}>
+                      <Text style={s.knopWitT}>Annuleren</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => { setSnelVoor(a.id); setSnelText((a.snelknoppen ?? []).join(', ')) }}
+                  style={s.prijsKnop}>
+                  <Text style={s.prijsKnopT}>
+                    ⚡ {a.snelknoppen && a.snelknoppen.length
+                      ? `Snelknoppen: ${a.snelknoppen.join(' · ')} — wijzigen`
+                      : 'Snelknoppen instellen'}
                   </Text>
                 </Pressable>
               )}
