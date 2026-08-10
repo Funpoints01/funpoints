@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from 'expo-router'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useT, TaalKiezer } from '../lib/i18n'
 
 const C = {
   bg: '#FFF8F0', ink: '#241B3A', muted: '#7A7290',
@@ -19,6 +20,7 @@ function Prop({ icon, tekst }: { icon: string; tekst: string }) {
 
 export default function Landing() {
   const router = useRouter()
+  const { t } = useT()
 
   // In de native app (App Store / Play) tonen we enkel de bezoekerskant.
   if (Platform.OS !== 'web') {
@@ -37,40 +39,42 @@ export default function Landing() {
           <Text style={s.logoT}>Funpoints</Text>
         </View>
 
-        <Text style={s.titel}>Spaar punten{'\n'}op de kermis 🎡</Text>
+        <TaalKiezer style={{ marginBottom: 4 }} />
+
+        <Text style={s.titel}>{t('Spaar punten op de kermis')} 🎡</Text>
         <Text style={s.sub}>
-          Verzamel punten bij elk kraam, volg de kermissen in je buurt en spaar naar prijzen. Helemaal gratis.
+          {t('Verzamel punten bij elk kraam, volg de kermissen in je buurt en spaar naar prijzen. Helemaal gratis.')}
         </Text>
 
         <View style={s.props}>
-          <Prop icon="🎟️" tekst="Spaar punten bij elk kraam dat je bezoekt" />
-          <Prop icon="🎡" tekst="Volg de kermissen bij jou in de buurt" />
-          <Prop icon="🎁" tekst="Spaar naar de hoofdprijs van je favoriete kraam" />
+          <Prop icon="🎟️" tekst={t('Spaar punten bij elk kraam dat je bezoekt')} />
+          <Prop icon="🎡" tekst={t('Volg de kermissen bij jou in de buurt')} />
+          <Prop icon="🎁" tekst={t('Spaar naar de hoofdprijs van je favoriete kraam')} />
         </View>
 
         <Pressable onPress={() => router.push('/registreer')} style={({ pressed }) => [s.knopPrimair, pressed && s.pressed]}>
-          <Text style={s.knopPrimairT}>Maak een gratis account</Text>
+          <Text style={s.knopPrimairT}>{t('Maak een gratis account')}</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/bezoeker')} style={({ pressed }) => [s.knopSecundair, pressed && s.pressed]}>
-          <Text style={s.knopSecundairT}>Ik heb al een account · Aanmelden</Text>
+          <Text style={s.knopSecundairT}>{t('Ik heb al een account · Aanmelden')}</Text>
         </Pressable>
 
         <View style={s.divider} />
 
-        <Text style={s.teamKop}>Werk je op de foor?</Text>
+        <Text style={s.teamKop}>{t('Werk je op de foor?')}</Text>
         <View style={s.teamRij}>
           <Pressable onPress={() => router.push('/uitbater')} style={({ pressed }) => [s.teamLink, pressed && s.teamLinkAan]}>
-            <Text style={s.teamLinkT}>📊 Uitbater</Text>
+            <Text style={s.teamLinkT}>📊 {t('Uitbater')}</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/foorkramer')} style={({ pressed }) => [s.teamLink, pressed && s.teamLinkAan]}>
-            <Text style={s.teamLinkT}>🎯 Foorkramer</Text>
+            <Text style={s.teamLinkT}>🎯 {t('Foorkramer')}</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/beheer')} style={({ pressed }) => [s.teamLink, pressed && s.teamLinkAan]}>
-            <Text style={s.teamLinkT}>⚙️ Management</Text>
+            <Text style={s.teamLinkT}>⚙️ {t('Management')}</Text>
           </Pressable>
         </View>
 
-        <Text style={s.voet}>Funpoints · voor de foor</Text>
+        <Text style={s.voet}>{t('Funpoints · voor de foor')}</Text>
       </ScrollView>
     </View>
   )

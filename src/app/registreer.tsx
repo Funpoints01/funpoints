@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
+import { useT } from '../lib/i18n'
 import { DatumVeld } from '../components/DatumVeld'
 
 const C = {
@@ -35,6 +36,7 @@ function leeftijdVan(iso: string): number {
 
 export default function Registreer() {
   const router = useRouter()
+  const { t } = useT()
   const { code } = useLocalSearchParams<{ code?: string }>()
   const [voornaam, setVoornaam] = useState('')
   const [achternaam, setAchternaam] = useState('')
@@ -50,23 +52,23 @@ export default function Registreer() {
 
   async function registreer() {
     setFout('')
-    if (!voornaam.trim()) return setFout('Vul je voornaam in.')
-    if (!achternaam.trim()) return setFout('Vul je achternaam in.')
+    if (!voornaam.trim()) return setFout(t('Vul je voornaam in.'))
+    if (!achternaam.trim()) return setFout(t('Vul je achternaam in.'))
     const gnaam = gebruikersnaam.trim()
-    if (!/^[A-Za-z0-9_]{3,20}$/.test(gnaam)) return setFout('Kies een gebruikersnaam van 3–20 tekens (letters, cijfers of _).')
-    if (!gbISO) return setFout('Kies je geboortedatum.')
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(gnaam)) return setFout(t('Kies een gebruikersnaam van 3–20 tekens (letters, cijfers of _).'))
+    if (!gbISO) return setFout(t('Kies je geboortedatum.'))
     const iso = gbISO
     const leeftijd = leeftijdVan(iso)
-    if (leeftijd < 0 || leeftijd > 120) return setFout('Controleer je geboortedatum.')
-    if (leeftijd < 13) return setFout('Je moet minstens 13 jaar zijn om zelf een account te maken. Vraag een ouder om je te helpen.')
-    if (!/^\d{4}$/.test(postcode.trim())) return setFout('Geef een geldige postcode (4 cijfers).')
-    if (!email.trim()) return setFout('Vul je e-mailadres in.')
-    if (ww.length < 6) return setFout('Kies een wachtwoord van minstens 6 tekens.')
+    if (leeftijd < 0 || leeftijd > 120) return setFout(t('Controleer je geboortedatum.'))
+    if (leeftijd < 13) return setFout(t('Je moet minstens 13 jaar zijn om zelf een account te maken. Vraag een ouder om je te helpen.'))
+    if (!/^\d{4}$/.test(postcode.trim())) return setFout(t('Geef een geldige postcode (4 cijfers).'))
+    if (!email.trim()) return setFout(t('Vul je e-mailadres in.'))
+    if (ww.length < 6) return setFout(t('Kies een wachtwoord van minstens 6 tekens.'))
 
     setBezig(true)
     // Gebruikersnaam vrij? (vóór het account bestaat)
     const { data: vrij } = await supabase.rpc('gebruikersnaam_vrij', { p_naam: gnaam })
-    if (vrij === false) { setBezig(false); return setFout('Die gebruikersnaam is al bezet, kies een andere.') }
+    if (vrij === false) { setBezig(false); return setFout(t('Die gebruikersnaam is al bezet, kies een andere.')) }
 
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: ww })
     if (error) {
@@ -79,7 +81,7 @@ export default function Registreer() {
     }
     if (!data.session || !data.user) {
       setBezig(false)
-      return setFout('Account aangemaakt, maar e-mailbevestiging staat nog aan in Supabase.')
+      return setFout(t('Account aangemaakt, maar e-mailbevestiging staat nog aan in Supabase.'))
     }
     // Profiel opslaan
     const { error: e2 } = await supabase.from('bezoeker').insert({
@@ -106,7 +108,7 @@ export default function Registreer() {
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={wrapC} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.push('/')} hitSlop={12}>
-          <Text style={s.terug}>‹ Terug</Text>
+          <Text style={s.terug}>{t('‹ Terug')}</Text>
         </Pressable>
 
         <View style={s.logo}>
@@ -114,59 +116,59 @@ export default function Registreer() {
           <Text style={s.logoT}>Funpoints</Text>
         </View>
 
-        <Text style={s.titel}>Account aanmaken</Text>
+        <Text style={s.titel}>{t('Account aanmaken')}</Text>
         <Text style={s.sub}>
           {code
-            ? 'Je spaarkaart wordt meteen aan je account gekoppeld — je punten gaan mee.'
-            : 'Maak je gratis Funpoints-account aan en spaar punten bij elke aangesloten kraam.'}
+            ? t('Je spaarkaart wordt meteen aan je account gekoppeld — je punten gaan mee.')
+            : t('Maak je gratis Funpoints-account aan en spaar punten bij elke aangesloten kraam.')}
         </Text>
 
         <View style={s.kaart}>
           <View style={s.naamRij}>
             <View style={{ flex: 1 }}>
-              <Text style={s.label}>Voornaam</Text>
+              <Text style={s.label}>{t('Voornaam')}</Text>
               <TextInput style={s.input} value={voornaam} onChangeText={setVoornaam}
-                placeholder="Voornaam" placeholderTextColor={C.muted} />
+                placeholder={t('Voornaam')} placeholderTextColor={C.muted} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.label}>Achternaam</Text>
+              <Text style={s.label}>{t('Achternaam')}</Text>
               <TextInput style={s.input} value={achternaam} onChangeText={setAchternaam}
-                placeholder="Achternaam" placeholderTextColor={C.muted} />
+                placeholder={t('Achternaam')} placeholderTextColor={C.muted} />
             </View>
           </View>
 
-          <Text style={[s.label, { marginTop: 14 }]}>Gebruikersnaam</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Gebruikersnaam')}</Text>
           <TextInput style={s.input} value={gebruikersnaam}
             onChangeText={(t) => setGebruikersnaam(t.replace(/[^A-Za-z0-9_]/g, ''))}
             autoCapitalize="none" maxLength={20}
-            placeholder="bv. kermiskoning" placeholderTextColor={C.muted} />
-          <Text style={s.veldHint}>Hiermee vinden vrienden je. 3–20 tekens: letters, cijfers of _.</Text>
+            placeholder={t('bv. kermiskoning')} placeholderTextColor={C.muted} />
+          <Text style={s.veldHint}>{t('Hiermee vinden vrienden je. 3–20 tekens: letters, cijfers of _.')}</Text>
 
-          <Text style={[s.label, { marginTop: 14 }]}>E-mail</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('E-mail')}</Text>
           <TextInput style={s.input} value={email} onChangeText={setEmail}
             autoCapitalize="none" keyboardType="email-address"
             placeholder="jij@voorbeeld.be" placeholderTextColor={C.muted} />
 
-          <Text style={[s.label, { marginTop: 14 }]}>Geboortedatum</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Geboortedatum')}</Text>
           <DatumVeld value={gbISO} onChange={setGbISO} />
 
-          <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Postcode')}</Text>
           <TextInput style={s.input} value={postcode} onChangeText={setPostcode}
             keyboardType="number-pad" maxLength={4}
             placeholder="bv. 9300" placeholderTextColor={C.muted} />
 
-          <Text style={[s.label, { marginTop: 14 }]}>Wachtwoord</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Wachtwoord')}</Text>
           <TextInput style={s.input} value={ww} onChangeText={setWw}
-            secureTextEntry placeholder="minstens 6 tekens" placeholderTextColor={C.muted} />
+            secureTextEntry placeholder={t('minstens 6 tekens')} placeholderTextColor={C.muted} />
 
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
 
           <Pressable onPress={registreer} disabled={bezig} style={[s.knop, s.knopCoral, bezig && s.knopUit]}>
-            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>Account aanmaken</Text>}
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Account aanmaken')}</Text>}
           </Pressable>
 
           <Pressable onPress={() => router.push('/bezoeker')} hitSlop={8} style={{ marginTop: 16, alignItems: 'center' }}>
-            <Text style={s.link}>Heb je al een account? Inloggen</Text>
+            <Text style={s.link}>{t('Heb je al een account? Inloggen')}</Text>
           </Pressable>
         </View>
       </ScrollView>
