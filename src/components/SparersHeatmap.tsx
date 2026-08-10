@@ -69,10 +69,10 @@ export function SparersHeatmap({ data }: { data: ProvAantal[] }) {
         </Svg>
       </View>
       {totaal === 0 ? (
-        <Text style={s.leeg}>Nog geen sparers om te tonen. Zodra bezoekers punten sparen, verschijnen ze hier.</Text>
+        <Text style={s.leeg}>Nog geen spaarders om te tonen. Zodra bezoekers punten sparen, verschijnen ze hier.</Text>
       ) : (
         <Text style={s.caption}>
-          {totaal} sparer(s) uit {punten.filter((p) => p.aantal).length} provincie(s)
+          {totaal} spaarder(s) uit {punten.filter((p) => p.aantal).length} provincie(s)
           {top.length ? ` · top: ${top.map((t) => `${t.naam} (${t.aantal})`).join(', ')}` : ''}
         </Text>
       )}

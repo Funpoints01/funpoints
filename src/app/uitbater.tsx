@@ -214,7 +214,7 @@ function Dashboard({ session }: { session: Session }) {
                   <View key={a.id} style={s.attrRij}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.attrNaam}>{a.naam}</Text>
-                      <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.sparers ?? 0} sparers · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
+                      <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.sparers ?? 0} spaarders · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={[s.attrNum, { color: C.green }]}>{perAttr[a.id]?.saldo ?? 0}</Text>
@@ -227,7 +227,7 @@ function Dashboard({ session }: { session: Session }) {
         </View>
 
         <View style={s.blok}>
-          <Text style={s.blokTitel}>Waar komen mijn sparers vandaan?</Text>
+          <Text style={s.blokTitel}>Waar komen mijn spaarders vandaan?</Text>
           <View style={{ marginTop: 10 }}><SparersHeatmap data={heat} /></View>
         </View>
 
