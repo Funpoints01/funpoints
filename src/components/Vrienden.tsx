@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { niveau, KERMISGANGER } from '../lib/levels'
+import { useT } from '../lib/i18n'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -27,6 +28,7 @@ function letter(p: { gebruikersnaam?: string | null; naam?: string | null }): st
 
 export function Vrienden() {
   const router = useRouter()
+  const { t } = useT()
   const [laden, setLaden] = useState(true)
   const [vrienden, setVrienden] = useState<Persoon[]>([])
   const [verzoeken, setVerzoeken] = useState<Verzoek[]>([])
@@ -66,11 +68,11 @@ export function Vrienden() {
     setMelding(null)
     const { error } = await supabase.rpc('vriend_verzoek', { p_naar: id })
     if (error) {
-      setMelding({ ok: false, tekst: error.message.includes('BESTAAT_AL') ? 'Jullie zijn al verbonden of er loopt al een verzoek.' : 'Versturen mislukt.' })
+      setMelding({ ok: false, tekst: error.message.includes('BESTAAT_AL') ? t('Jullie zijn al verbonden of er loopt al een verzoek.') : t('Versturen mislukt.') })
       return
     }
     setResultaat(null); setEmail('')
-    setMelding({ ok: true, tekst: 'Verzoek verstuurd! 🎉' })
+    setMelding({ ok: true, tekst: t('Verzoek verstuurd! 🎉') })
   }
 
   async function antwoord(verzoekId: string, aanvaard: boolean) {
@@ -83,24 +85,24 @@ export function Vrienden() {
 
   return (
     <View>
-      <Text style={s.paginaTitel}>👥 Vrienden</Text>
+      <Text style={s.paginaTitel}>{t('👥 Vrienden')}</Text>
 
       <View style={s.hero}>
-        <Text style={s.heroKick}>VOLG JE VRIENDEN</Text>
-        <Text style={s.heroBig}>{vrienden.length} {vrienden.length === 1 ? 'vriend' : 'vrienden'}</Text>
-        <Text style={s.heroSub}>Vergelijk jullie streaks en klim in de ranglijst.</Text>
+        <Text style={s.heroKick}>{t('VOLG JE VRIENDEN')}</Text>
+        <Text style={s.heroBig}>{vrienden.length} {vrienden.length === 1 ? t('vriend') : t('vrienden')}</Text>
+        <Text style={s.heroSub}>{t('Vergelijk jullie streaks en klim in de ranglijst.')}</Text>
       </View>
 
       {/* Zoeken op e-mail */}
       <View style={s.kaart}>
-        <Text style={s.blokTitel}>Vriend toevoegen</Text>
-        <Text style={s.blokSub}>Zoek iemand op zijn gebruikersnaam.</Text>
+        <Text style={s.blokTitel}>{t('Vriend toevoegen')}</Text>
+        <Text style={s.blokSub}>{t('Zoek iemand op zijn gebruikersnaam.')}</Text>
         <View style={s.zoekRij}>
           <TextInput style={s.input} value={email}
             onChangeText={(t) => { setEmail(t.replace(/[^A-Za-z0-9_]/g, '')); setGeenResultaat(false) }}
-            autoCapitalize="none" placeholder="gebruikersnaam" placeholderTextColor={C.muted} />
+            autoCapitalize="none" placeholder={t('gebruikersnaam')} placeholderTextColor={C.muted} />
           <Pressable onPress={zoeken} disabled={zoekBezig} style={[s.zoekKnop, zoekBezig && s.uit]}>
-            {zoekBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.zoekKnopT}>Zoek</Text>}
+            {zoekBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.zoekKnopT}>{t('Zoek')}</Text>}
           </Pressable>
         </View>
 
@@ -109,14 +111,14 @@ export function Vrienden() {
             <View style={s.avatar}><Text style={s.avatarT}>{letter(resultaat)}</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={s.resNaam}>@{resultaat.gebruikersnaam}</Text>
-              <Text style={s.resSub}>{resultaat.naam || 'Bezoeker'}</Text>
+              <Text style={s.resSub}>{resultaat.naam || t('Bezoeker')}</Text>
             </View>
             <Pressable onPress={() => stuurVerzoek(resultaat.bezoeker_id)} style={s.volgKnop}>
-              <Text style={s.volgKnopT}>+ Verzoek</Text>
+              <Text style={s.volgKnopT}>{t('+ Verzoek')}</Text>
             </Pressable>
           </View>
         ) : null}
-        {geenResultaat ? <Text style={s.geen}>Geen bezoeker met die gebruikersnaam gevonden.</Text> : null}
+        {geenResultaat ? <Text style={s.geen}>{t('Geen bezoeker met die gebruikersnaam gevonden.')}</Text> : null}
         {melding ? (
           <View style={[s.mBox, melding.ok && s.mBoxOk]}><Text style={[s.mT, melding.ok && s.mTOk]}>{melding.tekst}</Text></View>
         ) : null}
@@ -125,16 +127,16 @@ export function Vrienden() {
       {/* Openstaande verzoeken */}
       {verzoeken.length > 0 ? (
         <>
-          <Text style={s.sectie}>📨 Verzoeken</Text>
+          <Text style={s.sectie}>{t('📨 Verzoeken')}</Text>
           <View style={{ gap: 10 }}>
             {verzoeken.map((v) => (
               <View key={v.verzoek_id} style={s.vzKaart}>
                 <View style={s.avatar}><Text style={s.avatarT}>{letter(v)}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || 'Bezoeker')}</Text>
-                  <Text style={s.resSub}>wil je vriend worden</Text>
+                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || t('Bezoeker'))}</Text>
+                  <Text style={s.resSub}>{t('wil je vriend worden')}</Text>
                 </View>
-                <Pressable onPress={() => antwoord(v.verzoek_id, true)} style={s.jaKnop}><Text style={s.jaKnopT}>Aanvaard</Text></Pressable>
+                <Pressable onPress={() => antwoord(v.verzoek_id, true)} style={s.jaKnop}><Text style={s.jaKnopT}>{t('Aanvaard')}</Text></Pressable>
                 <Pressable onPress={() => antwoord(v.verzoek_id, false)} style={s.neeKnop}><Text style={s.neeKnopT}>✕</Text></Pressable>
               </View>
             ))}
@@ -143,15 +145,15 @@ export function Vrienden() {
       ) : null}
 
       {/* Ranglijst */}
-      <Text style={s.sectie}>🏆 Ranglijst</Text>
+      <Text style={s.sectie}>{t('🏆 Ranglijst')}</Text>
       {bord.length <= 1 && vrienden.length === 0 ? (
-        <View style={s.leeg}><Text style={s.leegT}>Voeg vrienden toe om samen een ranglijst te vormen.</Text></View>
+        <View style={s.leeg}><Text style={s.leegT}>{t('Voeg vrienden toe om samen een ranglijst te vormen.')}</Text></View>
       ) : (
         <>
           <View style={s.metricRij}>
             {METRICS.map((m) => (
               <Pressable key={m.key} onPress={() => setMetric(m.key)} style={[s.metricTab, metric === m.key && s.metricTabAan]}>
-                <Text style={[s.metricTabT, metric === m.key && s.metricTabTAan]}>{m.label}</Text>
+                <Text style={[s.metricTabT, metric === m.key && s.metricTabTAan]}>{t(m.label)}</Text>
               </Pressable>
             ))}
           </View>
@@ -161,14 +163,14 @@ export function Vrienden() {
                 <Text style={s.rangPos}>{MEDAILLE[i] ?? `${i + 1}`}</Text>
                 <View style={{ flex: 1 }}>
                   <View style={s.rangNaamRij}>
-                    <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? 'Jij' : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || 'Bezoeker'))}</Text>
-                    <View style={s.lvlChip}><Text style={s.lvlChipT}>Lvl {niveau(Number(r.bezoeken), KERMISGANGER).level}</Text></View>
+                    <Text style={[s.rangNaam, r.is_ik && s.rangNaamIk]}>{r.is_ik ? t('Jij') : (r.gebruikersnaam ? `@${r.gebruikersnaam}` : (r.naam || t('Bezoeker')))}</Text>
+                    <View style={s.lvlChip}><Text style={s.lvlChipT}>{t('Lvl {n}', { n: niveau(Number(r.bezoeken), KERMISGANGER).level })}</Text></View>
                   </View>
-                  <Text style={s.rangSub}>{r.bezoeken} check-ins · {r.kermissen} kermissen</Text>
+                  <Text style={s.rangSub}>{r.bezoeken} {t('check-ins')} · {r.kermissen} {t('kermissen')}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={s.rangGetal}>{r[metric]}</Text>
-                  <Text style={s.rangLbl}>{METRICS.find((m) => m.key === metric)?.lbl}</Text>
+                  <Text style={s.rangLbl}>{t(METRICS.find((m) => m.key === metric)?.lbl ?? '')}</Text>
                 </View>
               </View>
             ))}
@@ -179,14 +181,14 @@ export function Vrienden() {
       {/* Vriendenlijst */}
       {vrienden.length > 0 ? (
         <>
-          <Text style={s.sectie}>Je vrienden</Text>
+          <Text style={s.sectie}>{t('Je vrienden')}</Text>
           <View style={{ gap: 10 }}>
             {vrienden.map((v) => (
               <Pressable key={v.bezoeker_id} style={s.vriendRij}
-                onPress={() => router.push(`/vriend/${v.bezoeker_id}?naam=${encodeURIComponent(v.gebruikersnaam ? '@' + v.gebruikersnaam : (v.naam || 'Vriend'))}`)}>
+                onPress={() => router.push(`/vriend/${v.bezoeker_id}?naam=${encodeURIComponent(v.gebruikersnaam ? '@' + v.gebruikersnaam : (v.naam || t('Vriend')))}`)}>
                 <View style={s.avatar}><Text style={s.avatarT}>{letter(v)}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || 'Bezoeker')}</Text>
+                  <Text style={s.resNaam}>{v.gebruikersnaam ? `@${v.gebruikersnaam}` : (v.naam || t('Bezoeker'))}</Text>
                   {v.naam && v.gebruikersnaam ? <Text style={s.resSub}>{v.naam}</Text> : null}
                 </View>
                 <Text style={s.chev}>›</Text>

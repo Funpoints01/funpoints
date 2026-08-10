@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { useT } from '../lib/i18n'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -50,6 +51,8 @@ const FILTERS: { key: Status; label: string }[] = [
 
 export function KermisKalender({ postcode }: { postcode?: string }) {
   const router = useRouter()
+  const { t } = useT()
+  const dm = (iso: string) => { const [, m, d] = iso.split('-'); return `${parseInt(d, 10)} ${t(MAAND[parseInt(m, 10) - 1])}` }
   const [items, setItems] = useState<Item[]>([])
   const [laden, setLaden] = useState(true)
   const [filter, setFilter] = useState<Status>('binnenkort')
@@ -110,18 +113,18 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
       <Text style={s.paginaTitel}>🎡 Kermis-kalender</Text>
 
       <View style={s.hero}>
-        <Text style={s.heroKick}>{enkelBuurt && bezProv ? 'BIJ JOU IN DE BUURT' : 'ALLE KERMISSEN'}</Text>
-        <Text style={s.heroBig}>{ditJaar} kermissen in {jaar}</Text>
-        <Text style={s.heroSub}>{komende30} de komende 30 dagen</Text>
+        <Text style={s.heroKick}>{enkelBuurt && bezProv ? t('BIJ JOU IN DE BUURT') : t('ALLE KERMISSEN')}</Text>
+        <Text style={s.heroBig}>{t('{n} kermissen in {jaar}', { n: ditJaar, jaar })}</Text>
+        <Text style={s.heroSub}>{t('{n} de komende 30 dagen', { n: komende30 })}</Text>
       </View>
 
       {bezProv ? (
         <View style={s.buurtRij}>
           <Pressable onPress={() => setEnkelBuurt(false)} style={[s.buurtChip, !enkelBuurt && s.buurtChipAan]}>
-            <Text style={[s.buurtChipT, !enkelBuurt && s.buurtChipTAan]}>Heel België</Text>
+            <Text style={[s.buurtChipT, !enkelBuurt && s.buurtChipTAan]}>{t('Heel België')}</Text>
           </Pressable>
           <Pressable onPress={() => setEnkelBuurt(true)} style={[s.buurtChip, enkelBuurt && s.buurtChipAan]}>
-            <Text style={[s.buurtChipT, enkelBuurt && s.buurtChipTAan]}>📍 In mijn regio</Text>
+            <Text style={[s.buurtChipT, enkelBuurt && s.buurtChipTAan]}>{t('📍 In mijn regio')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -131,7 +134,7 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
           const n = basis.filter((i) => i.status === f.key).length
           return (
             <Pressable key={f.key} onPress={() => setFilter(f.key)} style={[s.fTab, filter === f.key && s.fTabAan]}>
-              <Text style={[s.fTabT, filter === f.key && s.fTabTAan]}>{f.label}</Text>
+              <Text style={[s.fTabT, filter === f.key && s.fTabTAan]}>{t(f.label)}</Text>
               <Text style={[s.fTabN, filter === f.key && s.fTabNAan]}>{n}</Text>
             </Pressable>
           )
@@ -139,7 +142,7 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
       </View>
 
       {zichtbaar.length === 0 ? (
-        <View style={s.leeg}><Text style={s.leegT}>Geen kermissen in deze categorie{enkelBuurt ? ' in jouw regio' : ''}.</Text></View>
+        <View style={s.leeg}><Text style={s.leegT}>{enkelBuurt ? t('Geen kermissen in deze categorie in jouw regio.') : t('Geen kermissen in deze categorie.')}</Text></View>
       ) : (
         <View style={{ gap: 10 }}>
           {zichtbaar.map((k) => (
@@ -147,20 +150,20 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
               <View style={s.kaartTop}>
                 <View style={{ flex: 1 }}>
                   <View style={s.badgeRij}>
-                    {k.status === 'actief' ? <Text style={[s.badge, s.badgeGroen]}>🟢 Nu actief</Text> : null}
-                    {k.status === 'binnenkort' ? <Text style={[s.badge, s.badgeAmber]}>Binnenkort</Text> : null}
-                    {k.inBuurt ? <Text style={[s.badge, s.badgeCoral]}>📍 In jouw regio</Text> : null}
+                    {k.status === 'actief' ? <Text style={[s.badge, s.badgeGroen]}>{t('🟢 Nu actief')}</Text> : null}
+                    {k.status === 'binnenkort' ? <Text style={[s.badge, s.badgeAmber]}>{t('Binnenkort')}</Text> : null}
+                    {k.inBuurt ? <Text style={[s.badge, s.badgeCoral]}>{t('📍 In jouw regio')}</Text> : null}
                   </View>
                   <Text style={s.kaartNaam}>{k.naam}</Text>
                   <Text style={s.kaartSub}>
-                    📅 {dagMaand(k.van)} – {dagMaand(k.tot)}{k.plaats ? ` · ${k.plaats}` : ''}
+                    📅 {dm(k.van)} – {dm(k.tot)}{k.plaats ? ` · ${k.plaats}` : ''}
                   </Text>
                 </View>
                 <Text style={s.chevron}>›</Text>
               </View>
               <View style={s.metaRij}>
-                <Text style={s.meta}>🎪 {k.kramen} {k.kramen === 1 ? 'kraam' : 'kramen'}</Text>
-                {k.gevolgd > 0 ? <Text style={[s.meta, s.metaVolg]}>❤️ {k.gevolgd} die je volgt</Text> : null}
+                <Text style={s.meta}>🎪 {k.kramen} {k.kramen === 1 ? t('kraam') : t('kramen')}</Text>
+                {k.gevolgd > 0 ? <Text style={[s.meta, s.metaVolg]}>❤️ {k.gevolgd} {t('die je volgt')}</Text> : null}
               </View>
             </Pressable>
           ))}
