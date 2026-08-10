@@ -2,6 +2,14 @@
 // Ontbreekt een sleutel, dan valt de app terug op het Nederlands.
 
 export const FR: Record<string, string> = {
+  "Je account is klaar!": "Ton compte est prêt !",
+  "Je spaarkaart is gekoppeld en je punten staan nu op je account. Vernietig nu je fysieke kaartje — knip de QR-code doormidden — zodat niemand anders je punten kan scannen.": "Ta carte de fidélité est liée et tes points sont maintenant sur ton compte. Détruis maintenant ta carte physique — coupe le code QR en deux — pour que personne d'autre ne puisse scanner tes points.",
+  "Ik heb mijn kaartje vernietigd": "J'ai détruit ma carte",
+  "Puntenjager": "Chasseur de points",
+  "Kraamfan": "Fan des stands",
+  "Streakmeester": "Maître des séries",
+  "gevolgde kramen": "stands suivis",
+  "dagen op rij": "jours d'affilée",
   "Spaar punten op de kermis": "Gagne des points à la foire",
   "Verzamel punten bij elk kraam, volg de kermissen in je buurt en spaar naar prijzen. Helemaal gratis.": "Gagne des points à chaque stand, suis les foires près de chez toi et économise pour des prix. Entièrement gratuit.",
   "Spaar punten bij elk kraam dat je bezoekt": "Gagne des points à chaque stand que tu visites",
@@ -184,6 +192,14 @@ export const FR: Record<string, string> = {
 }
 
 export const EN: Record<string, string> = {
+  "Je account is klaar!": "Your account is ready!",
+  "Je spaarkaart is gekoppeld en je punten staan nu op je account. Vernietig nu je fysieke kaartje — knip de QR-code doormidden — zodat niemand anders je punten kan scannen.": "Your loyalty card is linked and your points are now on your account. Destroy your physical card now — cut the QR code in half — so no one else can scan your points.",
+  "Ik heb mijn kaartje vernietigd": "I destroyed my card",
+  "Puntenjager": "Point Hunter",
+  "Kraamfan": "Stall Fan",
+  "Streakmeester": "Streak Master",
+  "gevolgde kramen": "followed stalls",
+  "dagen op rij": "days in a row",
   "Spaar punten op de kermis": "Earn points at the fair",
   "Verzamel punten bij elk kraam, volg de kermissen in je buurt en spaar naar prijzen. Helemaal gratis.": "Collect points at every stall, follow the fairs near you and save up for prizes. Completely free.",
   "Spaar punten bij elk kraam dat je bezoekt": "Earn points at every stall you visit",

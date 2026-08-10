@@ -35,9 +35,34 @@ Deno.serve(async (req) => {
 
     const { data: actie } = await supa
       .from('actie')
-      .select('titel, beschrijving')
+      .select('titel, beschrijving, soort, bonus_pct, bonus_modus, bonus_vast, attractie_id')
       .eq('id', camp.actie_id)
       .maybeSingle()
+
+    // Kraamnaam erbij halen voor een persoonlijke boodschap.
+    let kraam = ''
+    if (actie?.attractie_id) {
+      const { data: at } = await supa
+        .from('attractie')
+        .select('naam')
+        .eq('id', actie.attractie_id)
+        .maybeSingle()
+      kraam = at?.naam || ''
+    }
+
+    // Bouw een aantrekkelijke boodschap, bv.
+    // "Geniet nu van 10% extra punten bij Eendjeskraam Ghysels".
+    const bonusTekst = (() => {
+      if (actie?.soort !== 'bonus_punten') return null
+      if (actie?.bonus_modus === 'vast' && actie?.bonus_vast) return `${actie.bonus_vast} extra punten`
+      if (actie?.bonus_pct) return `${actie.bonus_pct}% extra punten`
+      return null
+    })()
+    const pushTitle = kraam ? `\uD83C\uDF89 ${kraam}` : (actie?.titel || 'Funpoints')
+    const pushBody = bonusTekst
+      ? (kraam ? `Geniet nu van ${bonusTekst} bij ${kraam}!` : `Geniet nu van ${bonusTekst}!`)
+      : (actie?.beschrijving
+          || (kraam ? `Er is een nieuwe actie bij ${kraam}!` : 'Er is een nieuwe actie voor jou!'))
 
     const { data: subs } = await supa.rpc('campagne_ontvangers', { p_campagne_id: campagne_id })
 
@@ -53,8 +78,8 @@ Deno.serve(async (req) => {
     }
 
     const payload = JSON.stringify({
-      title: actie?.titel || 'Funpoints',
-      body: actie?.beschrijving || 'Er is een nieuwe actie voor jou!',
+      title: pushTitle,
+      body: pushBody,
       url: '/bezoeker',
     })
 

@@ -84,7 +84,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null }
 
 export default function Acties() {
   const router = useRouter()
@@ -106,6 +106,10 @@ export default function Acties() {
   const [ssMelding, setSsMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [soort, setSoort] = useState('promo')
   const [pct, setPct] = useState('')
+  const [bonusModus, setBonusModus] = useState<'procent' | 'vast'>('procent')
+  const [bonusVast, setBonusVast] = useState('')
+  const [automatisch, setAutomatisch] = useState(true)
+  const [doelTel, setDoelTel] = useState<number | null>(null)
   const [van, setVan] = useState('')
   const [tot, setTot] = useState('')
   const [segment, setSegment] = useState('iedereen')
@@ -117,6 +121,8 @@ export default function Acties() {
   const [boostVoor, setBoostVoor] = useState<string | null>(null)
   const [boostBezig, setBoostBezig] = useState(false)
   const [boostFout, setBoostFout] = useState('')
+  const [boostTel, setBoostTel] = useState<number | null>(null)
+  const [ssTelling, setSsTelling] = useState<{ audience: number; bereikbaar: number } | null>(null)
 
   const [campVoor, setCampVoor] = useState<string | null>(null)
   const [campPc, setCampPc] = useState('')
@@ -137,6 +143,20 @@ export default function Acties() {
   function openCampagne(actieId: string) {
     setCampVoor(actieId); setCampMelding(null); setTelling(null)
     telDoelgroep(campPc, campRadius)
+  }
+
+  async function telSuperster(pc: string, radius: number) {
+    if (!/^\d{4}$/.test((pc || '').trim())) { setSsTelling(null); return }
+    const { data } = await supabase.rpc('tel_doelgroep', { p_postcode: pc.trim(), p_radius: radius })
+    setSsTelling(data ? { audience: (data as any).audience, bereikbaar: (data as any).bereikbaar } : null)
+  }
+
+  async function telBoost(a: Actie) {
+    setBoostTel(null)
+    const { data } = await supabase.rpc('tel_actie_doelgroep', {
+      p_provincies: a.doel_provincies, p_segment: a.doel_segment ?? 'iedereen', p_attractie_id: a.attractie_id,
+    })
+    setBoostTel(typeof data === 'number' ? data : Number(data) || 0)
   }
 
   async function activeerSuperster(actieId: string) {
@@ -213,7 +233,7 @@ export default function Acties() {
     let act: Actie[] = []
     if (eigenIds.length) {
       const { data } = await supabase.from('actie')
-        .select('id, attractie_id, titel, soort, bonus_pct, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies')
+        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment')
         .in('attractie_id', eigenIds).order('van')
       act = (data ?? []) as Actie[]
     }
@@ -222,6 +242,21 @@ export default function Acties() {
   }
   useEffect(() => { if (session) herlaad() }, [session])
 
+  // Live tellen hoeveel bezoekers deze actie zullen zien (regio + segment).
+  useEffect(() => {
+    if (!attrId) { setDoelTel(null); return }
+    let prov: string[] | null = null
+    if (regioNiveau < 3) {
+      if (!/^\d{4}$/.test(regioPc.trim())) { setDoelTel(null); return }
+      prov = provinciesVoor(regioPc.trim(), regioNiveau)
+      if (!prov) { setDoelTel(null); return }
+    }
+    let afgebroken = false
+    supabase.rpc('tel_actie_doelgroep', { p_provincies: prov, p_segment: segment, p_attractie_id: attrId })
+      .then(({ data }) => { if (!afgebroken) setDoelTel(typeof data === 'number' ? data : Number(data) || 0) })
+    return () => { afgebroken = true }
+  }, [attrId, segment, regioNiveau, regioPc])
+
   async function toevoegen() {
     setFout('')
     if (!attrId) return setFout('Kies een attractie.')
@@ -229,8 +264,12 @@ export default function Acties() {
     if (!van || !tot) return setFout('Kies een begin- en einddatum.')
     const vi = van, ti = tot
     if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
-    const pctNum = !eenmalig && soort === 'bonus_punten' ? parseInt(pct, 10) : null
-    if (!eenmalig && soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
+    const pctNum = !eenmalig && soort === 'bonus_punten' && bonusModus === 'procent' ? parseInt(pct, 10) : null
+    const vastNum = !eenmalig && soort === 'bonus_punten' && bonusModus === 'vast' ? parseInt(bonusVast, 10) : null
+    if (!eenmalig && soort === 'bonus_punten') {
+      if (bonusModus === 'procent' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
+      if (bonusModus === 'vast' && (!vastNum || vastNum <= 0)) return setFout('Geef een vast aantal extra punten.')
+    }
     let doelProv: string[] | null = null
     if (regioNiveau < 3) {
       if (!/^\d{4}$/.test(regioPc.trim())) return setFout('Geef een geldige postcode voor de regio, of kies “Heel België”.')
@@ -240,12 +279,14 @@ export default function Acties() {
     setBezig(true)
     const { error } = await supabase.from('actie').insert({
       attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
-      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig,
+      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, bonus_vast: vastNum,
+      bonus_modus: bonusModus, automatisch: !eenmalig && soort === 'bonus_punten' ? automatisch : false,
+      van: vi, tot: ti, eenmalig,
       doel_provincies: doelProv, doel_segment: segment,
     })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
-    setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
+    setTitel(''); setBeschrijving(''); setPct(''); setBonusVast(''); setBonusModus('procent'); setAutomatisch(true); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
     herlaad()
   }
@@ -339,9 +380,42 @@ export default function Acties() {
               </View>
               {soort === 'bonus_punten' ? (
                 <>
-                  <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
-                  <TextInput style={s.input} value={pct} onChangeText={setPct}
-                    keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
+                  <Text style={[s.label, { marginTop: 14 }]}>Bonus-type</Text>
+                  <View style={s.chips}>
+                    <Pressable onPress={() => setBonusModus('procent')} style={[s.chip, bonusModus === 'procent' && s.chipActief]}>
+                      <Text style={[s.chipT, bonusModus === 'procent' && s.chipTActief]}>% extra</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setBonusModus('vast')} style={[s.chip, bonusModus === 'vast' && s.chipActief]}>
+                      <Text style={[s.chipT, bonusModus === 'vast' && s.chipTActief]}>Vast per transactie</Text>
+                    </Pressable>
+                  </View>
+                  {bonusModus === 'procent' ? (
+                    <>
+                      <Text style={[s.label, { marginTop: 14 }]}>Extra punten (%)</Text>
+                      <TextInput style={s.input} value={pct} onChangeText={setPct}
+                        keyboardType="number-pad" placeholder="bv. 10" placeholderTextColor={C.muted} />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[s.label, { marginTop: 14 }]}>Extra punten per transactie</Text>
+                      <TextInput style={s.input} value={bonusVast} onChangeText={setBonusVast}
+                        keyboardType="number-pad" placeholder="bv. 5" placeholderTextColor={C.muted} />
+                    </>
+                  )}
+                  <Text style={[s.label, { marginTop: 14 }]}>Toepassen</Text>
+                  <View style={s.chips}>
+                    <Pressable onPress={() => setAutomatisch(true)} style={[s.chip, automatisch && s.chipActief]}>
+                      <Text style={[s.chipT, automatisch && s.chipTActief]}>Scanner telt automatisch bij</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setAutomatisch(false)} style={[s.chip, !automatisch && s.chipActief]}>
+                      <Text style={[s.chipT, !automatisch && s.chipTActief]}>Enkel tonen</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={s.campProv}>
+                    {automatisch
+                      ? `Tijdens de actie telt de scanner automatisch ${bonusModus === 'vast' ? `${bonusVast || 'x'} punten` : `${pct || 'x'}%`} extra bij elke keer sparen.`
+                      : 'De actie wordt getoond aan bezoekers, maar de scanner telt niets automatisch bij.'}
+                  </Text>
                 </>
               ) : null}
             </>
@@ -349,11 +423,11 @@ export default function Acties() {
           <View style={s.datumRij}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Van</Text>
-              <DatumVeld value={van} onChange={setVan} />
+              <DatumVeld value={van} onChange={setVan} toekomst />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Tot</Text>
-              <DatumVeld value={tot} onChange={setTot} />
+              <DatumVeld value={tot} onChange={setTot} toekomst />
             </View>
           </View>
 
@@ -386,6 +460,12 @@ export default function Acties() {
             <Text style={s.campProv}>Iedereen in België ziet deze actie.</Text>
           )}
 
+          <View style={s.tellerVak}>
+            {doelTel === null
+              ? <Text style={s.tellerLeeg}>Kies attractie, regio en segment om je doelgroep te zien.</Text>
+              : <Text style={s.tellerT}><Text style={s.tellerGetal}>≈ {doelTel}</Text> bezoeker(s) worden met deze actie getarget</Text>}
+          </View>
+
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie toevoegen</Text>}
@@ -407,7 +487,9 @@ export default function Acties() {
                   </View>
                   <Text style={s.actieSub}>
                     {naamVan(a.attractie_id)}
-                    {!a.eenmalig && a.soort === 'bonus_punten' && a.bonus_pct ? ` · +${a.bonus_pct}% punten` : ''}
+                    {!a.eenmalig && a.soort === 'bonus_punten'
+                      ? ` · ${a.bonus_modus === 'vast' ? `+${a.bonus_vast ?? 0} punten` : `+${a.bonus_pct ?? 0}%`}${a.automatisch ? ' (auto)' : ''}`
+                      : ''}
                     {' · '}{toonDatum(a.van)} → {toonDatum(a.tot)}
                   </Text>
                 </View>
@@ -417,6 +499,7 @@ export default function Acties() {
               {boostVoor === a.id ? (
                 <View style={s.boostVak}>
                   <Text style={s.boostUitleg}>Kies hoelang je deze actie uitlicht (10 credits/dag):</Text>
+                  <Text style={s.campProv}>{boostTel === null ? 'Bereik berekenen…' : `Deze uitlichting bereikt \u2248 ${boostTel} bezoeker(s) in je doelgroep.`}</Text>
                   <View style={s.boostOpties}>
                     {BOOSTS.map((b) => (
                       <Pressable key={b.d} onPress={() => boost(a.id, b.d)} disabled={boostBezig}
@@ -432,7 +515,7 @@ export default function Acties() {
                   </Pressable>
                 </View>
               ) : (
-                <Pressable onPress={() => { setBoostVoor(a.id); setBoostFout('') }} style={s.boostKnop}>
+                <Pressable onPress={() => { setBoostVoor(a.id); setBoostFout(''); telBoost(a) }} style={s.boostKnop}>
                   <Text style={s.boostKnopT}>⭐ {isGeboost(a.boost_tot) ? 'Uitlichting verlengen' : 'Boost deze actie'}</Text>
                 </Pressable>
               )}
@@ -457,7 +540,7 @@ export default function Acties() {
                   </View>
 
                   <Text style={[s.label, { marginTop: 14 }]}>Postcode (middelpunt)</Text>
-                  <TextInput style={s.input} value={ssPc} onChangeText={setSsPc}
+                  <TextInput style={s.input} value={ssPc} onChangeText={(t) => { setSsPc(t); telSuperster(t, ssRadius) }}
                     keyboardType="number-pad" maxLength={4}
                     placeholder="bv. 8531" placeholderTextColor={C.muted} />
                   {provVan(ssPc) ? <Text style={s.campProv}>Regio rond {PROV[provVan(ssPc)!]}</Text> : null}
@@ -465,11 +548,17 @@ export default function Acties() {
                   <Text style={[s.label, { marginTop: 14 }]}>Straal</Text>
                   <View style={s.kmRij}>
                     {RADII.map((r) => (
-                      <Pressable key={r} onPress={() => setSsRadius(r)}
+                      <Pressable key={r} onPress={() => { setSsRadius(r); telSuperster(ssPc, r) }}
                         style={[s.kmChip, ssRadius === r && s.kmChipAan]}>
                         <Text style={[s.kmChipT, ssRadius === r && s.kmChipTAan]}>{r} km</Text>
                       </Pressable>
                     ))}
+                  </View>
+
+                  <View style={s.tellerVak}>
+                    {ssTelling
+                      ? <Text style={s.tellerT}><Text style={s.tellerGetal}>{ssTelling.audience}</Text> bezoeker(s) in deze regio zien de superster-banner</Text>
+                      : <Text style={s.tellerLeeg}>Geef een postcode om je bereik te zien.</Text>}
                   </View>
 
                   {ssMelding ? (
@@ -489,7 +578,7 @@ export default function Acties() {
                   </Pressable>
                 </View>
               ) : (
-                <Pressable onPress={() => { setSsVoor(a.id); setSsMelding(null) }} style={s.ssKnop}>
+                <Pressable onPress={() => { setSsVoor(a.id); setSsMelding(null); setSsTelling(null); telSuperster(ssPc, ssRadius) }} style={s.ssKnop}>
                   <Text style={s.ssKnopT}>⭐ {isSuperster(a.superster_tot) ? 'Superster verlengen' : 'Superster activeren'}</Text>
                 </Pressable>
               )}

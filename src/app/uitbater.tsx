@@ -63,7 +63,7 @@ function Login() {
           <TextInput style={s.input} value={ww} onChangeText={setWw}
             secureTextEntry placeholder="••••••••" placeholderTextColor={C.muted} />
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
-          <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
+          <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopViolet, { marginTop: 18 }, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Inloggen</Text>}
           </Pressable>
         </View>

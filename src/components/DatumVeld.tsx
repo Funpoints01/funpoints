@@ -18,15 +18,15 @@ function naarISO(date: Date): string {
   return `${j}-${m}-${d}`
 }
 
-export function DatumVeld({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+export function DatumVeld({ value, onChange, toekomst, placeholder }: { value: string; onChange: (iso: string) => void; toekomst?: boolean; placeholder?: string }) {
   const [open, setOpen] = useState(false)
-  const huidig = value ? new Date(value + 'T00:00:00') : new Date(2005, 0, 1)
+  const huidig = value ? new Date(value + 'T00:00:00') : (toekomst ? new Date() : new Date(2005, 0, 1))
 
   return (
     <View>
       <Pressable style={s.veld} onPress={() => setOpen(true)}>
         <Text style={{ color: value ? '#241B3A' : '#7A7290', fontSize: 16 }}>
-          {value ? toonNL(value) : 'Kies je geboortedatum'}
+          {value ? toonNL(value) : (placeholder ?? 'Kies een datum')}
         </Text>
       </Pressable>
 
@@ -34,7 +34,7 @@ export function DatumVeld({ value, onChange }: { value: string; onChange: (iso: 
         <DateTimePicker
           value={huidig}
           mode="date"
-          maximumDate={new Date()}
+          {...(toekomst ? { minimumDate: new Date() } : { maximumDate: new Date() })}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, date) => {
             if (Platform.OS !== 'ios') setOpen(false)

@@ -47,6 +47,7 @@ export default function Registreer() {
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
+  const [kaartKlaar, setKaartKlaar] = useState(false)
   const insets = useSafeAreaInsets()
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 60 : insets.top + 14 }]
 
@@ -99,9 +100,29 @@ export default function Registreer() {
     // Kaartje koppelen (punten verhuizen mee) — niet-blokkerend
     if (code) {
       await supabase.rpc('claim_via_code', { p_claim_code: String(code).trim() })
+      setBezig(false)
+      setKaartKlaar(true)
+      return
     }
     setBezig(false)
     router.replace('/bezoeker')
+  }
+
+  if (kaartKlaar) {
+    return (
+      <View style={[s.scherm, wrapC, { justifyContent: 'center' }]}>
+        <View style={[s.kaart, { alignItems: 'center' }]}>
+          <Text style={{ fontSize: 52, marginBottom: 4 }}>✂️</Text>
+          <Text style={s.titel}>{t('Je account is klaar!')}</Text>
+          <Text style={[s.sub, { textAlign: 'center' }]}>
+            {t('Je spaarkaart is gekoppeld en je punten staan nu op je account. Vernietig nu je fysieke kaartje — knip de QR-code doormidden — zodat niemand anders je punten kan scannen.')}
+          </Text>
+          <Pressable onPress={() => router.replace('/bezoeker')} style={[s.knop, s.knopCoral, { alignSelf: 'stretch' }]}>
+            <Text style={s.knopCoralT}>{t('Ik heb mijn kaartje vernietigd')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    )
   }
 
   return (
@@ -150,7 +171,7 @@ export default function Registreer() {
             placeholder="jij@voorbeeld.be" placeholderTextColor={C.muted} />
 
           <Text style={[s.label, { marginTop: 14 }]}>{t('Geboortedatum')}</Text>
-          <DatumVeld value={gbISO} onChange={setGbISO} />
+          <DatumVeld value={gbISO} onChange={setGbISO} placeholder={t('Kies je geboortedatum')} />
 
           <Text style={[s.label, { marginTop: 14 }]}>{t('Postcode')}</Text>
           <TextInput style={s.input} value={postcode} onChangeText={setPostcode}

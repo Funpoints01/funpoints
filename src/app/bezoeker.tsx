@@ -391,6 +391,9 @@ function Home({ session }: { session: Session }) {
   const niveaus = [
     { icon: '🎯', titel: 'Ontdekker', waarde: stats.bezocht, basis: [3, 5, 8, 12, 20], kleur: C.coral, eenheid: 'kramen' },
     { icon: '🎪', titel: 'Kermisganger', waarde: checkins, basis: [1, 3, 6, 10, 20], kleur: C.violet, eenheid: 'check-ins' },
+    { icon: '⭐', titel: 'Puntenjager', waarde: stats.punten, basis: [50, 150, 350, 700, 1500], kleur: C.amber, eenheid: 'punten' },
+    { icon: '❤️', titel: 'Kraamfan', waarde: gevolgdAantal, basis: [1, 3, 5, 10, 20], kleur: C.green, eenheid: 'gevolgde kramen' },
+    { icon: '🔥', titel: 'Streakmeester', waarde: stats.streak, basis: [2, 3, 5, 7, 14], kleur: C.coralD, eenheid: 'dagen op rij' },
   ].map((t) => ({ ...t, ...niveau(t.waarde, t.basis) }))
   const voornaam = naam ? naam.split(' ')[0] : ''
   const gewoneActies = acties.filter((a: any) => a.id !== superAct?.id)
@@ -515,8 +518,8 @@ function Home({ session }: { session: Session }) {
                     </View>
                     {a.eenmalig ? (
                       <View style={s.voucherChip}><Text style={s.voucherChipT}>{t('voucher')}</Text></View>
-                    ) : a.soort === 'bonus_punten' && a.bonus_pct ? (
-                      <View style={s.bonusChip}><Text style={s.bonusChipT}>+{a.bonus_pct}%</Text></View>
+                    ) : a.soort === 'bonus_punten' && (a.bonus_modus === 'vast' ? a.bonus_vast : a.bonus_pct) ? (
+                      <View style={s.bonusChip}><Text style={s.bonusChipT}>{a.bonus_modus === 'vast' ? `+${a.bonus_vast}` : `+${a.bonus_pct}%`}</Text></View>
                     ) : null}
                   </View>
                 </Pressable>
