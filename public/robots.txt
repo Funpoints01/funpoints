@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+# Indexatie wordt geregeld via de X-Robots-Tag noindex-header
