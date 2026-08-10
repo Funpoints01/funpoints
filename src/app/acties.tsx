@@ -17,6 +17,11 @@ const SOORTEN = [
   { key: 'promo', label: 'Korting / promo' },
   { key: 'bonus_punten', label: 'Extra punten' },
 ]
+const SEGMENTEN = [
+  { k: 'iedereen', l: 'Iedereen' },
+  { k: 'bestaande', l: 'Bestaande spaarders' },
+  { k: 'nieuw', l: 'Nieuwe bezoekers' },
+]
 const BOOSTS = [{ d: 3 }, { d: 7 }, { d: 14 }]   // 10 credits/dag
 function naarISO(sv: string): string | null {
   const d = sv.match(/\d+/g)
@@ -103,6 +108,9 @@ export default function Acties() {
   const [pct, setPct] = useState('')
   const [van, setVan] = useState('')
   const [tot, setTot] = useState('')
+  const [segment, setSegment] = useState('iedereen')
+  const [regioNiveau, setRegioNiveau] = useState(3)
+  const [regioPc, setRegioPc] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
 
@@ -223,14 +231,22 @@ export default function Acties() {
     if (ti < vi) return setFout('De einddatum ligt vóór de startdatum.')
     const pctNum = !eenmalig && soort === 'bonus_punten' ? parseInt(pct, 10) : null
     if (!eenmalig && soort === 'bonus_punten' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
+    let doelProv: string[] | null = null
+    if (regioNiveau < 3) {
+      if (!/^\d{4}$/.test(regioPc.trim())) return setFout('Geef een geldige postcode voor de regio, of kies “Heel België”.')
+      doelProv = provinciesVoor(regioPc.trim(), regioNiveau)
+      if (!doelProv) return setFout('Kon de regio niet bepalen — controleer de postcode.')
+    }
     setBezig(true)
     const { error } = await supabase.from('actie').insert({
       attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
       soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, van: vi, tot: ti, eenmalig,
+      doel_provincies: doelProv, doel_segment: segment,
     })
     setBezig(false)
     if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
     setTitel(''); setBeschrijving(''); setPct(''); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
+    setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
     herlaad()
   }
 
@@ -340,6 +356,36 @@ export default function Acties() {
               <DatumVeld value={tot} onChange={setTot} />
             </View>
           </View>
+
+          <Text style={[s.label, { marginTop: 16 }]}>Wie mag deze actie zien?</Text>
+          <View style={s.chips}>
+            {SEGMENTEN.map((sg) => (
+              <Pressable key={sg.k} onPress={() => setSegment(sg.k)} style={[s.chip, segment === sg.k && s.chipActief]}>
+                <Text style={[s.chipT, segment === sg.k && s.chipTActief]}>{sg.l}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.label, { marginTop: 14 }]}>Regio</Text>
+          <View style={s.chips}>
+            {NIVEAUS.map((nv, i) => (
+              <Pressable key={nv} onPress={() => setRegioNiveau(i)} style={[s.chip, regioNiveau === i && s.chipActief]}>
+                <Text style={[s.chipT, regioNiveau === i && s.chipTActief]}>{nv}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {regioNiveau < 3 ? (
+            <>
+              <TextInput style={[s.input, { marginTop: 10 }]} value={regioPc} onChangeText={setRegioPc}
+                keyboardType="number-pad" maxLength={4} placeholder="postcode als middelpunt, bv. 8500" placeholderTextColor={C.muted} />
+              {provVan(regioPc) ? (
+                <Text style={s.campProv}>{(provinciesVoor(regioPc, regioNiveau) ?? []).map((pp) => PROV[pp]).join(', ')}</Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={s.campProv}>Iedereen in België ziet deze actie.</Text>
+          )}
+
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie toevoegen</Text>}

@@ -287,7 +287,7 @@ function Home({ session }: { session: Session }) {
         supabase.from('puntenboeking').select('attractie_id, punten, soort, created_at'),
         supabase.from('kermis').select('id, naam, plaats, postcode, van, tot').gte('tot', todayISO).order('van'),
         supabase.from('kermis_attractie').select('kermis_id, attractie_id'),
-        supabase.from('actie').select('id, attractie_id, titel, beschrijving, soort, bonus_pct, van, tot, boost_tot, eenmalig').eq('actief', true).gte('tot', todayISO),
+        supabase.rpc('zichtbare_acties'),  // regio- en segment-targeting server-side
         supabase.from('kraam_volger').select('attractie_id'),
         supabase.from('spaardoel').select('attractie_id, naam, punten'),
         supabase.from('incheck').select('id'),
