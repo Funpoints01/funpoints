@@ -1,6 +1,7 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useT } from '../lib/i18n'
 
 const C = { card: '#FFFFFF', muted: '#7A7290', coral: '#FB7185', coralD: '#E11D63', line: 'rgba(36,27,58,0.10)' }
 
@@ -14,6 +15,7 @@ const TABS = [
 
 export function BottomNav({ active, onSelect }: { active?: string; onSelect?: (key: string) => void }) {
   const router = useRouter()
+  const { t } = useT()
   const insets = useSafeAreaInsets()
   const kies = (key: string) => {
     if (onSelect) onSelect(key)
@@ -21,17 +23,17 @@ export function BottomNav({ active, onSelect }: { active?: string; onSelect?: (k
   }
   return (
     <View style={[s.tabBar, { paddingBottom: Platform.OS === 'web' ? 24 : Math.max(insets.bottom, 12) }]}>
-      {TABS.map((t) => t.key === 'qr' ? (
-        <Pressable key={t.key} style={s.tabMidWrap} onPress={() => kies('qr')}>
+      {TABS.map((tab) => tab.key === 'qr' ? (
+        <Pressable key={tab.key} style={s.tabMidWrap} onPress={() => kies('qr')}>
           <View style={[s.tabMid, active === 'qr' && s.tabMidAan]}>
             <Text style={s.tabMidIcon}>🎟️</Text>
           </View>
           <Text style={[s.tabLabel, active === 'qr' && s.tabLabelAan]}>QR</Text>
         </Pressable>
       ) : (
-        <Pressable key={t.key} style={s.tabItem} onPress={() => kies(t.key)}>
-          <Text style={[s.tabIcon, active === t.key && s.tabIconAan]}>{t.icon}</Text>
-          <Text numberOfLines={1} style={[s.tabLabel, active === t.key && s.tabLabelAan]}>{t.label}</Text>
+        <Pressable key={tab.key} style={s.tabItem} onPress={() => kies(tab.key)}>
+          <Text style={[s.tabIcon, active === tab.key && s.tabIconAan]}>{tab.icon}</Text>
+          <Text numberOfLines={1} style={[s.tabLabel, active === tab.key && s.tabLabelAan]}>{t(tab.label)}</Text>
         </Pressable>
       ))}
     </View>

@@ -14,6 +14,7 @@ import { KermisKalender } from '../components/KermisKalender'
 import { Vrienden } from '../components/Vrienden'
 import { BottomNav } from '../components/BottomNav'
 import { niveau } from '../lib/levels'
+import { useT, TaalKiezer } from '../lib/i18n'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -45,6 +46,7 @@ function Logo({ licht }: { licht?: boolean }) {
 
 function Login() {
   const router = useRouter()
+  const { t } = useT()
   const [email, setEmail] = useState('')
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
@@ -55,7 +57,7 @@ function Login() {
     setFout(''); setBezig(true)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: ww })
     setBezig(false)
-    if (error) setFout('Inloggen mislukt — controleer je e-mail en wachtwoord.')
+    if (error) setFout(t('Inloggen mislukt — controleer je e-mail en wachtwoord.'))
   }
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -64,25 +66,25 @@ function Login() {
           <Pressable onPress={() => router.push('/')} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
         ) : null}
         <Logo />
-        <Text style={s.titel}>Bezoeker</Text>
-        <Text style={s.sub}>Log in om je kermis-belevenis te openen.</Text>
+        <Text style={s.titel}>{t('Bezoeker')}</Text>
+        <Text style={s.sub}>{t('Log in om je kermis-belevenis te openen.')}</Text>
         <View style={s.kaart}>
-          <Text style={s.label}>E-mail</Text>
+          <Text style={s.label}>{t('E-mail')}</Text>
           <TextInput style={s.input} value={email} onChangeText={setEmail}
             autoCapitalize="none" keyboardType="email-address"
             placeholder="jij@voorbeeld.be" placeholderTextColor={C.muted} />
-          <Text style={[s.label, { marginTop: 14 }]}>Wachtwoord</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Wachtwoord')}</Text>
           <TextInput style={s.input} value={ww} onChangeText={setWw}
             secureTextEntry placeholder="••••••••" placeholderTextColor={C.muted} />
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopCoral, bezig && s.knopUit]}>
-            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>Inloggen</Text>}
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Inloggen')}</Text>}
           </Pressable>
         </View>
         <Pressable onPress={() => router.push('/registreer')} style={[s.knop, s.knopWit]}>
-          <Text style={s.knopWitT}>Account aanmaken</Text>
+          <Text style={s.knopWitT}>{t('Account aanmaken')}</Text>
         </Pressable>
-        <Text style={s.hint}>Heb je een Funpoints-kaartje? Scan de achterkant bij het registreren om je punten mee te nemen.</Text>
+        <Text style={s.hint}>{t('Heb je een Funpoints-kaartje? Scan de achterkant bij het registreren om je punten mee te nemen.')}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -135,6 +137,7 @@ const TABS = [
 ] as const
 
 function SupersterBanner({ actie, onPress }: { actie: any; onPress: () => void }) {
+  const { t } = useT()
   const x = useRef(new Animated.Value(-80)).current
   useEffect(() => {
     const loop = Animated.loop(
@@ -150,7 +153,7 @@ function SupersterBanner({ actie, onPress }: { actie: any; onPress: () => void }
   return (
     <Pressable onPress={onPress} style={s.superBanner}>
       <Animated.View style={[s.superShine, { transform: [{ translateX: x }, { skewX: '-20deg' }] }]} />
-      <Text style={s.superKicker}>⭐ SUPERSTER-ACTIE</Text>
+      <Text style={s.superKicker}>{t('⭐ SUPERSTER-ACTIE')}</Text>
       <Text style={s.superTitel}>{actie.titel}</Text>
       <Text style={s.superKraam}>{actie.kraam}{actie.beschrijving ? ` · ${actie.beschrijving}` : ''}</Text>
     </Pressable>
@@ -159,6 +162,7 @@ function SupersterBanner({ actie, onPress }: { actie: any; onPress: () => void }
 
 function Home({ session }: { session: Session }) {
   const router = useRouter()
+  const { t } = useT()
   const [naam, setNaam] = useState('')
   const [code, setCode] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
@@ -196,7 +200,7 @@ function Home({ session }: { session: Session }) {
   async function verwijderAccount() {
     setVerwijderBezig(true)
     const { error } = await supabase.rpc('verwijder_mijn_account')
-    if (error) { setVerwijderBezig(false); setVerwijderStap(0); setProfielMelding('Account verwijderen mislukt. Probeer later opnieuw.'); return }
+    if (error) { setVerwijderBezig(false); setVerwijderStap(0); setProfielMelding(t('Account verwijderen mislukt. Probeer later opnieuw.')); return }
     await supabase.auth.signOut()
     router.push('/')
   }
@@ -204,18 +208,18 @@ function Home({ session }: { session: Session }) {
   async function bewaarProfiel() {
     if (!bezId) return
     if (fPostcode.trim() && !/^\d{4}$/.test(fPostcode.trim())) {
-      setProfielMelding('Geef een geldige postcode (4 cijfers).'); return
+      setProfielMelding(t('Geef een geldige postcode (4 cijfers).')); return
     }
     const gnaam = fGebruikersnaam.trim()
     if (gnaam && !/^[A-Za-z0-9_]{3,20}$/.test(gnaam)) {
-      setProfielMelding('Gebruikersnaam: 3–20 tekens, enkel letters, cijfers en _.'); return
+      setProfielMelding(t('Gebruikersnaam: 3–20 tekens, enkel letters, cijfers en _.')); return
     }
     setProfielBezig(true); setProfielMelding(null)
     if (gnaam) {
       const { error: ge } = await supabase.rpc('zet_gebruikersnaam', { p_naam: gnaam })
       if (ge) {
         setProfielBezig(false)
-        setProfielMelding(ge.message.includes('BEZET') ? 'Die gebruikersnaam is al bezet.' : 'Gebruikersnaam ongeldig.')
+        setProfielMelding(ge.message.includes('BEZET') ? t('Die gebruikersnaam is al bezet.') : t('Gebruikersnaam ongeldig.'))
         return
       }
     }
@@ -223,9 +227,9 @@ function Home({ session }: { session: Session }) {
       .update({ naam: fNaam.trim() || null, postcode: fPostcode.trim() || null })
       .eq('id', bezId)
     setProfielBezig(false)
-    if (error) { setProfielMelding('Opslaan mislukt. Probeer opnieuw.'); return }
+    if (error) { setProfielMelding(t('Opslaan mislukt. Probeer opnieuw.')); return }
     setNaam(fNaam.trim())
-    setProfielMelding('Opgeslagen ✓')
+    setProfielMelding(t('Opgeslagen ✓'))
   }
 
   useEffect(() => { pushStatus().then(setPush) }, [])
@@ -376,9 +380,9 @@ function Home({ session }: { session: Session }) {
   if (isBez === false) {
     return (
       <View style={[s.scherm, s.center, { padding: 28 }]}>
-        <Text style={s.sub}>Deze login is geen bezoeker-account. Log uit en registreer je, of log in met je bezoeker-account.</Text>
+        <Text style={s.sub}>{t('Deze login is geen bezoeker-account. Log uit en registreer je, of log in met je bezoeker-account.')}</Text>
         <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} style={{ marginTop: 16 }}>
-          <Text style={s.terug}>Uitloggen</Text>
+          <Text style={s.terug}>{t('Uitloggen')}</Text>
         </Pressable>
       </View>
     )
@@ -411,27 +415,27 @@ function Home({ session }: { session: Session }) {
         <View style={s.hero}>
           <View style={s.heroDeco} />
           <View style={s.heroDeco2} />
-          <Text style={s.heroHi}>Hallo{voornaam ? `, ${voornaam}` : ''} 👋</Text>
-          <Text style={s.heroTag}>Klaar voor wat kermisplezier?</Text>
+          <Text style={s.heroHi}>{t('Hallo')}{voornaam ? `, ${voornaam}` : ''} 👋</Text>
+          <Text style={s.heroTag}>{t('Klaar voor wat kermisplezier?')}</Text>
           <View style={s.heroStats}>
-            <View style={s.heroStat}><Text style={s.heroStatIcon}>🎪</Text><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>bezocht</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>🎪</Text><Text style={s.heroNum}>{stats.bezocht}</Text><Text style={s.heroSub}>{t('bezocht')}</Text></View>
             <View style={s.heroLijn} />
-            <View style={s.heroStat}><Text style={s.heroStatIcon}>⭐</Text><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>punten</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>⭐</Text><Text style={s.heroNum}>{stats.punten}</Text><Text style={s.heroSub}>{t('punten')}</Text></View>
             <View style={s.heroLijn} />
-            <View style={s.heroStat}><Text style={s.heroStatIcon}>❤️</Text><Text style={s.heroNum}>{gevolgdAantal}</Text><Text style={s.heroSub}>gevolgd</Text></View>
+            <View style={s.heroStat}><Text style={s.heroStatIcon}>❤️</Text><Text style={s.heroNum}>{gevolgdAantal}</Text><Text style={s.heroSub}>{t('gevolgd')}</Text></View>
           </View>
         </View>
 
         <View style={s.tegelRij}>
           <Pressable style={[s.tegel, s.tegelKramen]} onPress={() => router.push('/kramen')}>
             <Text style={s.tegelIcon}>🎪</Text>
-            <Text style={s.tegelTitel}>Kramen</Text>
-            <Text style={s.tegelSub}>Volg je favorieten</Text>
+            <Text style={s.tegelTitel}>{t('Kramen')}</Text>
+            <Text style={s.tegelSub}>{t('Volg je favorieten')}</Text>
           </Pressable>
           <Pressable style={[s.tegel, s.tegelTradities]} onPress={() => router.push('/tradities')}>
             <Text style={s.tegelIcon}>🏆</Text>
-            <Text style={s.tegelTitel}>Tradities</Text>
-            <Text style={s.tegelSub}>Je jaarlijkse streaks</Text>
+            <Text style={s.tegelTitel}>{t('Tradities')}</Text>
+            <Text style={s.tegelSub}>{t('Je jaarlijkse streaks')}</Text>
           </Pressable>
         </View>
 
@@ -439,10 +443,10 @@ function Home({ session }: { session: Session }) {
           <Pressable style={s.pushBalk} onPress={wisselPush} disabled={pushBezig}>
             <Text style={s.pushBalkT}>
               {push === 'geblokkeerd'
-                ? '🔔 Meldingen staan uit in je browser — zet ze aan bij de site-instellingen'
-                : '🔔 Zet meldingen aan en mis geen enkele actie in je buurt'}
+                ? t('🔔 Meldingen staan uit in je browser — zet ze aan bij de site-instellingen')
+                : t('🔔 Zet meldingen aan en mis geen enkele actie in je buurt')}
             </Text>
-            {push !== 'geblokkeerd' ? <Text style={s.pushBalkKnop}>{pushBezig ? '…' : 'Aanzetten'}</Text> : null}
+            {push !== 'geblokkeerd' ? <Text style={s.pushBalkKnop}>{pushBezig ? '…' : t('Aanzetten')}</Text> : null}
           </Pressable>
         ) : null}
 
@@ -455,7 +459,7 @@ function Home({ session }: { session: Session }) {
 
         {favBuurt.length > 0 ? (
           <>
-            <Text style={s.sectie}>❤️ Favorieten in de buurt</Text>
+            <Text style={s.sectie}>{t('❤️ Favorieten in de buurt')}</Text>
             <View style={{ gap: 10 }}>
               {favBuurt.map((f: any) => (
                 <Pressable key={f.attractieId} style={s.favKaart} onPress={() => router.push(`/kraam/${f.attractieId}`)}>
@@ -463,7 +467,7 @@ function Home({ session }: { session: Session }) {
                   <View style={{ flex: 1 }}>
                     <Text style={s.favNaam}>{f.kraam}</Text>
                     <Text style={[s.favSub, f.nu && s.favNu]}>
-                      {f.nu ? `🟢 Nu op ${f.kermis}` : `📍 Binnenkort · ${f.kermis}`}{f.plaats ? ` · ${f.plaats}` : ''}
+                      {f.nu ? t('🟢 Nu op {kermis}', { kermis: f.kermis }) : t('📍 Binnenkort · {kermis}', { kermis: f.kermis })}{f.plaats ? ` · ${f.plaats}` : ''}
                     </Text>
                   </View>
                   <Text style={s.favChev}>›</Text>
@@ -475,19 +479,19 @@ function Home({ session }: { session: Session }) {
 
         {dezeWeek.length > 0 ? (
           <>
-            <Text style={s.sectie}>🔥 Deze week</Text>
+            <Text style={s.sectie}>{t('🔥 Deze week')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 4, paddingRight: 4 }}>
               {dezeWeek.map((k: any) => (
                 <Pressable key={k.id} style={s.weekKaart} onPress={() => router.push(`/kermis/${k.id}`)}>
                   <View style={s.weekBadgeRij}>
                     {k.actief
-                      ? <Text style={[s.weekBadge, s.weekBadgeNu]}>🟢 Nu open</Text>
-                      : <Text style={[s.weekBadge, s.weekBadgeSoon]}>Binnenkort</Text>}
-                    {k.inBuurt ? <Text style={[s.weekBadge, s.weekBadgeBuurt]}>📍 regio</Text> : null}
+                      ? <Text style={[s.weekBadge, s.weekBadgeNu]}>{t('🟢 Nu open')}</Text>
+                      : <Text style={[s.weekBadge, s.weekBadgeSoon]}>{t('Binnenkort')}</Text>}
+                    {k.inBuurt ? <Text style={[s.weekBadge, s.weekBadgeBuurt]}>{t('📍 regio')}</Text> : null}
                   </View>
                   <Text style={s.weekNaam} numberOfLines={2}>{k.naam}</Text>
                   <Text style={s.weekSub}>📅 {kort(k.van)} – {kort(k.tot)}</Text>
-                  <Text style={s.weekMeta}>{k.plaats ? `${k.plaats} · ` : ''}{k.kramen} {k.kramen === 1 ? 'kraam' : 'kramen'}</Text>
+                  <Text style={s.weekMeta}>{k.plaats ? `${k.plaats} · ` : ''}{k.kramen} {k.kramen === 1 ? t('kraam') : t('kramen')}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -496,21 +500,21 @@ function Home({ session }: { session: Session }) {
 
         {gewoneActies.length > 0 ? (
           <>
-            <Text style={s.sectie}>🔥 Acties & deals</Text>
+            <Text style={s.sectie}>{t('🔥 Acties & deals')}</Text>
             <View style={{ gap: 10 }}>
               {gewoneActies.map((a) => (
                 <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]}
                   onPress={() => a.eenmalig ? toonVoucher(a) : router.push(`/kraam/${a.attractie_id}`)}>
-                  {a.geboost ? <Text style={s.uitgelicht}>⭐ UITGELICHT</Text> : null}
+                  {a.geboost ? <Text style={s.uitgelicht}>{t('⭐ UITGELICHT')}</Text> : null}
                   <View style={s.actieBinnen}>
                     <View style={{ flex: 1 }}>
                       <View style={s.kraamChip}><Text style={s.kraamChipT}>🎪 {a.kraam}</Text></View>
                       <Text style={s.actieTitel}>{a.titel}</Text>
                       {a.beschrijving ? <Text style={s.actieDesc}>{a.beschrijving}</Text> : null}
-                      {a.eenmalig ? <Text style={s.voucherTag}>🎟️ Tik om je voucher op te halen</Text> : null}
+                      {a.eenmalig ? <Text style={s.voucherTag}>{t('🎟️ Tik om je voucher op te halen')}</Text> : null}
                     </View>
                     {a.eenmalig ? (
-                      <View style={s.voucherChip}><Text style={s.voucherChipT}>voucher</Text></View>
+                      <View style={s.voucherChip}><Text style={s.voucherChipT}>{t('voucher')}</Text></View>
                     ) : a.soort === 'bonus_punten' && a.bonus_pct ? (
                       <View style={s.bonusChip}><Text style={s.bonusChipT}>+{a.bonus_pct}%</Text></View>
                     ) : null}
@@ -521,24 +525,24 @@ function Home({ session }: { session: Session }) {
           </>
         ) : null}
 
-        <Text style={s.sectie}>🏅 Levels</Text>
+        <Text style={s.sectie}>🏅 {t('Levels')}</Text>
         <View style={{ gap: 10 }}>
-          {niveaus.map((t, i) => {
-            const pct = Math.max(0, Math.min(1, (t.waarde - t.start) / (t.volgende - t.start)))
-            const resterend = Math.max(0, t.volgende - t.waarde)
+          {niveaus.map((nv, i) => {
+            const pct = Math.max(0, Math.min(1, (nv.waarde - nv.start) / (nv.volgende - nv.start)))
+            const resterend = Math.max(0, nv.volgende - nv.waarde)
             return (
               <View key={i} style={s.chalKaart}>
-                <View style={[s.lvlIcon, { backgroundColor: t.kleur + '22' }]}><Text style={{ fontSize: 22 }}>{t.icon}</Text></View>
+                <View style={[s.lvlIcon, { backgroundColor: nv.kleur + '22' }]}><Text style={{ fontSize: 22 }}>{nv.icon}</Text></View>
                 <View style={{ flex: 1 }}>
                   <View style={s.chalTop}>
-                    <Text style={s.chalTitel}>{t.titel}</Text>
-                    <View style={[s.lvlBadge, { backgroundColor: t.kleur }]}><Text style={s.lvlBadgeT}>Level {t.level}</Text></View>
+                    <Text style={s.chalTitel}>{t(nv.titel)}</Text>
+                    <View style={[s.lvlBadge, { backgroundColor: nv.kleur }]}><Text style={s.lvlBadgeT}>{t('Level {lvl}', { lvl: nv.level })}</Text></View>
                   </View>
-                  <Text style={s.chalDesc}>Nog {resterend} {t.eenheid} tot level {t.level + 1}</Text>
+                  <Text style={s.chalDesc}>{t('Nog {n} {eenheid} tot level {lvl}', { n: resterend, eenheid: t(nv.eenheid), lvl: nv.level + 1 })}</Text>
                   <View style={s.balkBg}>
-                    <View style={[s.balkVul, { width: `${Math.round(pct * 100)}%`, backgroundColor: t.kleur }]} />
+                    <View style={[s.balkVul, { width: `${Math.round(pct * 100)}%`, backgroundColor: nv.kleur }]} />
                   </View>
-                  <Text style={s.lvlSub}>{t.waarde} / {t.volgende} {t.eenheid}</Text>
+                  <Text style={s.lvlSub}>{nv.waarde} / {nv.volgende} {t(nv.eenheid)}</Text>
                 </View>
               </View>
             )
@@ -555,18 +559,15 @@ function Home({ session }: { session: Session }) {
 
       {tab === 'qr' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>🎟️ Mijn QR</Text>
+        <Text style={s.paginaTitel}>{t('🎟️ Mijn QR')}</Text>
         <View style={s.qrKaart}>
           {code
             ? <View style={s.qrWit}><QRCode value={`FP-B:${code}`} size={196} backgroundColor="#FFFFFF" color="#241B3A" /></View>
-            : <Text style={s.kraartSoort}>QR wordt geladen…</Text>}
-          <Text style={s.qrTitel}>Jouw punten-QR</Text>
-          <Text style={s.qrHint}>
-            Toon deze ene QR aan elk kraam. De foorkramer scant hem en je punten worden
-            automatisch bij dàt kraam bijgeschreven of ingeruild — nooit door elkaar.
-          </Text>
+            : <Text style={s.kraartSoort}>{t('QR wordt geladen…')}</Text>}
+          <Text style={s.qrTitel}>{t('Jouw punten-QR')}</Text>
+          <Text style={s.qrHint}>{t('Toon deze ene QR aan elk kraam. De foorkramer scant hem en je punten worden automatisch bij dàt kraam bijgeschreven of ingeruild — nooit door elkaar.')}</Text>
           {!online ? (
-            <Text style={s.qrOffline}>📴 Geen internet — je QR werkt gewoon. Je punten verschijnen zodra je terug online bent.</Text>
+            <Text style={s.qrOffline}>{t('📴 Geen internet — je QR werkt gewoon. Je punten verschijnen zodra je terug online bent.')}</Text>
           ) : null}
         </View>
       </ScrollView>
@@ -574,10 +575,10 @@ function Home({ session }: { session: Session }) {
 
       {tab === 'saldo' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>⭐ Mijn saldo's</Text>
+        <Text style={s.paginaTitel}>{t("⭐ Mijn saldo's")}</Text>
         {kramen.some((k) => k.saldo !== 0) ? (
           <>
-            <Text style={s.subKop}>Je saldo per kraam</Text>
+            <Text style={s.subKop}>{t('Je saldo per kraam')}</Text>
             <View style={{ gap: 10 }}>
               {kramen.filter((k) => k.saldo !== 0).map((k) => (
                 <Pressable key={k.id} style={s.kraart} onPress={() => router.push(`/kraam/${k.id}`)}>
@@ -588,7 +589,7 @@ function Home({ session }: { session: Session }) {
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={s.saldoNum}>{k.saldo}</Text>
-                      <Text style={s.saldoLbl}>punten</Text>
+                      <Text style={s.saldoLbl}>{t('punten')}</Text>
                     </View>
                   </View>
                   {doelen[k.id] ? (
@@ -600,43 +601,46 @@ function Home({ session }: { session: Session }) {
                     </View>
                   ) : null}
                   <View style={s.detailLink}>
-                    <Text style={s.detailLinkT}>🎁 Bekijk je prijs-voortgang ›</Text>
+                    <Text style={s.detailLinkT}>{t('🎁 Bekijk je prijs-voortgang ›')}</Text>
                   </View>
                 </Pressable>
               ))}
             </View>
           </>
         ) : (
-          <Text style={s.sub}>Je hebt nog geen punten gespaard. Laat je QR scannen bij een kraam om te beginnen.</Text>
+          <Text style={s.sub}>{t('Je hebt nog geen punten gespaard. Laat je QR scannen bij een kraam om te beginnen.')}</Text>
         )}
-        <Text style={s.voet}>Funpoints · meer belevenis komt eraan 🎠</Text>
+        <Text style={s.voet}>{t('Funpoints · meer belevenis komt eraan 🎠')}</Text>
       </ScrollView>
       ) : null}
 
       {tab === 'settings' ? (
       <ScrollView style={s.blad} contentContainerStyle={wrapC}>
-        <Text style={s.paginaTitel}>👤 Account</Text>
+        <Text style={s.paginaTitel}>{t('👤 Account')}</Text>
 
-        <Text style={s.sectie}>Profiel</Text>
+        <Text style={s.sectie}>Taal · Langue · Language</Text>
+        <View style={s.kaart}><TaalKiezer /></View>
+
+        <Text style={s.sectie}>{t('Profiel')}</Text>
         <View style={s.kaart}>
-          <Text style={s.label}>Naam</Text>
+          <Text style={s.label}>{t('Naam')}</Text>
           <TextInput style={s.input} value={fNaam} onChangeText={setFNaam}
-            placeholder="Je naam" placeholderTextColor={C.muted} />
+            placeholder={t('Je naam')} placeholderTextColor={C.muted} />
 
-          <Text style={[s.label, { marginTop: 14 }]}>Gebruikersnaam</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Gebruikersnaam')}</Text>
           <TextInput style={s.input} value={fGebruikersnaam}
             onChangeText={(t) => setFGebruikersnaam(t.replace(/[^A-Za-z0-9_]/g, ''))}
             autoCapitalize="none" maxLength={20}
-            placeholder="bv. kermiskoning" placeholderTextColor={C.muted} />
-          <Text style={s.veldHint}>Zo vinden vrienden je. 3–20 tekens: letters, cijfers of _.</Text>
+            placeholder={t('bv. kermiskoning')} placeholderTextColor={C.muted} />
+          <Text style={s.veldHint}>{t('Zo vinden vrienden je. 3–20 tekens: letters, cijfers of _.')}</Text>
 
-          <Text style={[s.label, { marginTop: 14 }]}>Postcode</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('Postcode')}</Text>
           <TextInput style={s.input} value={fPostcode} onChangeText={setFPostcode}
             keyboardType="number-pad" maxLength={4}
             placeholder="bv. 8531" placeholderTextColor={C.muted} />
-          <Text style={s.veldHint}>Zo tonen we je kermissen en acties in je buurt.</Text>
+          <Text style={s.veldHint}>{t('Zo tonen we je kermissen en acties in je buurt.')}</Text>
 
-          <Text style={[s.label, { marginTop: 14 }]}>E-mail</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>{t('E-mail')}</Text>
           <View style={s.leesveld}><Text style={s.leesveldT}>{session.user.email ?? '—'}</Text></View>
 
           {profielMelding ? (
@@ -646,56 +650,53 @@ function Home({ session }: { session: Session }) {
           ) : null}
 
           <Pressable onPress={bewaarProfiel} disabled={profielBezig} style={[s.knop, s.knopCoral, profielBezig && { opacity: 0.5 }]}>
-            {profielBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>Opslaan</Text>}
+            {profielBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Opslaan')}</Text>}
           </Pressable>
         </View>
 
-        <Text style={s.sectie}>Meldingen</Text>
+        <Text style={s.sectie}>{t('Meldingen')}</Text>
         <View style={s.kaart}>
           {pushOndersteund() ? (
             <View style={s.instelRij}>
               <View style={{ flex: 1 }}>
-                <Text style={s.instelLabel}>Pushmeldingen</Text>
-                <Text style={s.veldHint}>Een seintje bij nieuwe acties in je buurt.</Text>
+                <Text style={s.instelLabel}>{t('Pushmeldingen')}</Text>
+                <Text style={s.veldHint}>{t('Een seintje bij nieuwe acties in je buurt.')}</Text>
               </View>
               <Pressable onPress={wisselPush} disabled={pushBezig}
                 style={[s.miniKnop, push === 'aan' && s.miniKnopAan]}>
                 <Text style={[s.miniKnopT, push === 'aan' && s.miniKnopTAan]}>
-                  {pushBezig ? '…' : push === 'aan' ? 'Aan' : push === 'geblokkeerd' ? 'Geblokkeerd' : 'Uit'}
+                  {pushBezig ? '…' : push === 'aan' ? t('Aan') : push === 'geblokkeerd' ? t('Geblokkeerd') : t('Uit')}
                 </Text>
               </Pressable>
             </View>
           ) : (
             <Text style={s.sub}>
               {Platform.OS === 'web'
-                ? 'Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).'
-                : 'Pushmeldingen komen binnenkort in de app.'}
+                ? t('Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).')
+                : t('Pushmeldingen komen binnenkort in de app.')}
             </Text>
           )}
         </View>
 
         <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }} style={[s.knop, s.knopWit, { marginTop: 22 }]}>
-          <Text style={s.knopWitT}>Uitloggen</Text>
+          <Text style={s.knopWitT}>{t('Uitloggen')}</Text>
         </Pressable>
 
-        <Text style={[s.sectie, { marginTop: 22 }]}>Account</Text>
+        <Text style={[s.sectie, { marginTop: 22 }]}>{t('Account')}</Text>
         <View style={s.kaart}>
           {verwijderStap === 0 ? (
             <Pressable onPress={() => setVerwijderStap(1)} hitSlop={6}>
-              <Text style={s.gevaarLink}>Account verwijderen</Text>
+              <Text style={s.gevaarLink}>{t('Account verwijderen')}</Text>
             </Pressable>
           ) : (
             <>
-              <Text style={s.gevaarUitleg}>
-                Weet je het zeker? Je account, je gespaarde punten en al je gegevens worden
-                definitief verwijderd. Dit kan niet ongedaan gemaakt worden.
-              </Text>
+              <Text style={s.gevaarUitleg}>{t('Weet je het zeker? Je account, je gespaarde punten en al je gegevens worden definitief verwijderd. Dit kan niet ongedaan gemaakt worden.')}</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                 <Pressable onPress={() => setVerwijderStap(0)} style={[s.knop, s.knopWit, { flex: 1, marginTop: 0 }]}>
-                  <Text style={s.knopWitT}>Annuleren</Text>
+                  <Text style={s.knopWitT}>{t('Annuleren')}</Text>
                 </Pressable>
                 <Pressable onPress={verwijderAccount} disabled={verwijderBezig} style={[s.knop, s.knopGevaar, { flex: 1, marginTop: 0 }, verwijderBezig && { opacity: 0.5 }]}>
-                  {verwijderBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopGevaarT}>Definitief verwijderen</Text>}
+                  {verwijderBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopGevaarT}>{t('Definitief verwijderen')}</Text>}
                 </Pressable>
               </View>
             </>
@@ -725,23 +726,23 @@ function Home({ session }: { session: Session }) {
               vGebruikt ? (
                 <View style={s.vGebruiktVak}>
                   <Text style={s.vGebruiktIcon}>✓</Text>
-                  <Text style={s.vGebruiktT}>Al ingewisseld</Text>
-                  <Text style={s.vGebruiktSub}>op {new Date(vGebruikt).toLocaleString('nl-BE')}</Text>
+                  <Text style={s.vGebruiktT}>{t('Al ingewisseld')}</Text>
+                  <Text style={s.vGebruiktSub}>{t('op')} {new Date(vGebruikt).toLocaleString('nl-BE')}</Text>
                 </View>
               ) : (
                 <>
                   <View style={s.vQrWit}>
                     <QRCode value={`FP-V:${vCode}`} size={200} backgroundColor="#FFFFFF" color="#241B3A" />
                   </View>
-                  <Text style={s.vModalHint}>Toon deze QR aan de foorkramer. Hij kan hem één keer scannen.</Text>
+                  <Text style={s.vModalHint}>{t('Toon deze QR aan de foorkramer. Hij kan hem één keer scannen.')}</Text>
                 </>
               )
             ) : (
-              <Text style={s.vModalFout}>Voucher ophalen mislukt. Probeer straks opnieuw.</Text>
+              <Text style={s.vModalFout}>{t('Voucher ophalen mislukt. Probeer straks opnieuw.')}</Text>
             )}
 
             <Pressable style={s.vSluit} onPress={() => setVActie(null)}>
-              <Text style={s.vSluitT}>Sluiten</Text>
+              <Text style={s.vSluitT}>{t('Sluiten')}</Text>
             </Pressable>
           </View>
         </View>
