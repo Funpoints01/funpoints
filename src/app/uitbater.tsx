@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { SparersHeatmap, type ProvAantal } from '../components/SparersHeatmap'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -94,7 +95,10 @@ function Dashboard({ session }: { session: Session }) {
   const [openstaand, setOpenstaand] = useState(0)
   const [opgeladen, setOpgeladen] = useState(0)
   const [ingewisseld, setIngewisseld] = useState(0)
-  const [perAttr, setPerAttr] = useState<Record<string, { saldo: number; boekingen: number }>>({})
+  const [perAttr, setPerAttr] = useState<Record<string, { saldo: number; boekingen: number; sparers: number; ingewisseld: number }>>({})
+  const [heat, setHeat] = useState<ProvAantal[]>([])
+  const [leeftijden, setLeeftijden] = useState<{ categorie: string; aantal: number }[]>([])
+  const [actieStats, setActieStats] = useState<{ actie_id: string; attractie_id: string; titel: string; eenmalig: boolean; claims: number; ingewisseld: number }[]>([])
   const [dagen, setDagen] = useState<{ label: string; waarde: number }[]>([])
   const [laden, setLaden] = useState(true)
 
@@ -105,15 +109,19 @@ function Dashboard({ session }: { session: Session }) {
       if (!u) { setIsUitbater(false); setLaden(false); return }
       setIsUitbater(true); setNaam(u.naam ?? '')
 
-      const [{ data: att }, { data: sal }, { data: boek }] = await Promise.all([
+      const [{ data: att }, { data: sal }, { data: boek }, { data: prov }, { data: lft }, { data: astat }] = await Promise.all([
         supabase.from('attractie').select('id, naam, soort'),
         supabase.from('saldo').select('attractie_id, saldo'),
-        supabase.from('puntenboeking').select('attractie_id, created_at, punten, soort'),
+        supabase.from('puntenboeking').select('attractie_id, bezoeker_id, created_at, punten, soort'),
+        supabase.rpc('uitb_provincies'),
+        supabase.rpc('uitb_leeftijden'),
+        supabase.rpc('uitb_actie_stats'),
       ])
       const attrLijst = (att ?? []) as Attr[]
       setAttracties(attrLijst)
-      const pa: Record<string, { saldo: number; boekingen: number }> = {}
-      attrLijst.forEach((a) => { pa[a.id] = { saldo: 0, boekingen: 0 } })
+      const pa: Record<string, { saldo: number; boekingen: number; sparers: number; ingewisseld: number }> = {}
+      const spSet: Record<string, Set<string>> = {}
+      attrLijst.forEach((a) => { pa[a.id] = { saldo: 0, boekingen: 0, sparers: 0, ingewisseld: 0 }; spSet[a.id] = new Set() })
       let tot = 0
       ;(sal ?? []).forEach((r: any) => { tot += r.saldo ?? 0; if (pa[r.attractie_id]) pa[r.attractie_id].saldo += r.saldo ?? 0 })
       setOpenstaand(tot)
@@ -121,10 +129,18 @@ function Dashboard({ session }: { session: Session }) {
       const perDag: Record<string, number> = {}
       ;(boek ?? []).forEach((r: any) => {
         if (r.soort === 'toevoegen') up += r.punten; else neer += Math.abs(r.punten)
-        if (pa[r.attractie_id]) pa[r.attractie_id].boekingen += 1
+        if (pa[r.attractie_id]) {
+          pa[r.attractie_id].boekingen += 1
+          if (r.soort !== 'toevoegen') pa[r.attractie_id].ingewisseld += Math.abs(r.punten)
+          if (r.bezoeker_id) spSet[r.attractie_id].add(r.bezoeker_id)
+        }
         if (r.soort === 'toevoegen') { const k = String(r.created_at).slice(0, 10); perDag[k] = (perDag[k] ?? 0) + r.punten }
       })
+      attrLijst.forEach((a) => { pa[a.id].sparers = spSet[a.id].size })
       setOpgeladen(up); setIngewisseld(neer); setPerAttr(pa)
+      setHeat((prov ?? []) as ProvAantal[])
+      setLeeftijden((lft ?? []) as { categorie: string; aantal: number }[])
+      setActieStats((astat ?? []) as any)
       setDagen(laatsteDagen(14).map((d) => ({ label: `${d.getDate()}/${d.getMonth() + 1}`, waarde: perDag[dagKey(d)] ?? 0 })))
       setLaden(false)
     })()
@@ -142,6 +158,7 @@ function Dashboard({ session }: { session: Session }) {
     )
   }
 
+  const naamVanAttr = (id: string) => attracties.find((a) => a.id === id)?.naam ?? '—'
   const maxDag = Math.max(1, ...dagen.map((d) => d.waarde))
   const kpis = [
     { num: openstaand, lbl: 'openstaande punten', kleur: C.green },
@@ -197,7 +214,7 @@ function Dashboard({ session }: { session: Session }) {
                   <View key={a.id} style={s.attrRij}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.attrNaam}>{a.naam}</Text>
-                      <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
+                      <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.sparers ?? 0} sparers · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={[s.attrNum, { color: C.green }]}>{perAttr[a.id]?.saldo ?? 0}</Text>
@@ -206,6 +223,49 @@ function Dashboard({ session }: { session: Session }) {
                   </View>
                 ))}
             </View>
+          </View>
+        </View>
+
+        <View style={s.blok}>
+          <Text style={s.blokTitel}>Waar komen mijn sparers vandaan?</Text>
+          <View style={{ marginTop: 10 }}><SparersHeatmap data={heat} /></View>
+        </View>
+
+        <View style={[s.mainRow, { flexDirection: breed ? 'row' : 'column' }]}>
+          <View style={[s.blok, breed ? { flex: 1 } : null]}>
+            <Text style={s.blokTitel}>Leeftijd van mijn bezoekers</Text>
+            {leeftijden.length === 0
+              ? <Text style={s.sub}>Nog geen gegevens.</Text>
+              : (() => {
+                  const maxL = Math.max(1, ...leeftijden.map((l) => Number(l.aantal)))
+                  return leeftijden.map((l) => (
+                    <View key={l.categorie} style={s.lftRij}>
+                      <Text style={s.lftLbl}>{l.categorie}</Text>
+                      <View style={s.lftBalkVak}>
+                        <View style={[s.lftBalk, { width: (`${Math.round((Number(l.aantal) / maxL) * 100)}%` as any) }]} />
+                      </View>
+                      <Text style={s.lftNum}>{l.aantal}</Text>
+                    </View>
+                  ))
+                })()}
+          </View>
+
+          <View style={[s.blok, breed ? { flex: 1 } : null]}>
+            <Text style={s.blokTitel}>Per actie</Text>
+            {actieStats.length === 0
+              ? <Text style={s.sub}>Nog geen acties. Zet er een op via 📣 Acties.</Text>
+              : actieStats.map((a) => (
+                <View key={a.actie_id} style={s.attrRij}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.attrNaam}>{a.eenmalig ? '🎟️ ' : ''}{a.titel}</Text>
+                    <Text style={s.attrSub}>{naamVanAttr(a.attractie_id)}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[s.attrNum, { color: C.violet }]}>{a.claims}</Text>
+                    <Text style={s.attrSub}>{a.ingewisseld} ingewisseld</Text>
+                  </View>
+                </View>
+              ))}
           </View>
         </View>
 
@@ -293,4 +353,9 @@ const s = StyleSheet.create({
     color: C.violet, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5,
     backgroundColor: 'rgba(139,92,246,0.14)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden',
   },
+  lftRij: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  lftLbl: { color: C.ink, fontSize: 13, fontWeight: '700', width: 58 },
+  lftBalkVak: { flex: 1, height: 12, backgroundColor: C.veld, borderRadius: 999, overflow: 'hidden' },
+  lftBalk: { height: 12, backgroundColor: C.coral, borderRadius: 999, minWidth: 4 },
+  lftNum: { color: C.muted, fontSize: 12.5, fontWeight: '700', width: 34, textAlign: 'right' },
 })
