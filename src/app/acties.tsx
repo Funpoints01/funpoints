@@ -84,7 +84,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null; status: string | null; afkeur_reden: string | null }
 
 export default function Acties() {
   const router = useRouter()
@@ -92,6 +92,7 @@ export default function Acties() {
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [acties, setActies] = useState<Actie[]>([])
   const [credits, setCredits] = useState(0)
+  const [okMelding, setOkMelding] = useState('')
   const [pakket, setPakket] = useState('volledig')
   const [laden, setLaden] = useState(true)
 
@@ -235,7 +236,7 @@ export default function Acties() {
     let act: Actie[] = []
     if (eigenIds.length) {
       const { data } = await supabase.from('actie')
-        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment')
+        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment, status, afkeur_reden')
         .in('attractie_id', eigenIds).order('van')
       act = (data ?? []) as Actie[]
     }
@@ -278,16 +279,21 @@ export default function Acties() {
       doelProv = provinciesVoor(regioPc.trim(), regioNiveau)
       if (!doelProv) return setFout('Kon de regio niet bepalen — controleer de postcode.')
     }
-    setBezig(true)
-    const { error } = await supabase.from('actie').insert({
-      attractie_id: attrId, titel: titel.trim(), beschrijving: beschrijving.trim() || null,
-      soort: eenmalig ? 'voucher' : soort, bonus_pct: pctNum, bonus_vast: vastNum,
-      bonus_modus: bonusModus, automatisch: !eenmalig && soort === 'bonus_punten' ? automatisch : false,
-      van: vi, tot: ti, eenmalig,
-      doel_provincies: doelProv, doel_segment: segment,
+    setBezig(true); setOkMelding('')
+    const { data, error } = await supabase.rpc('actie_indienen', {
+      p_attractie_id: attrId, p_titel: titel.trim(), p_beschrijving: beschrijving.trim() || null,
+      p_soort: eenmalig ? 'voucher' : soort, p_bonus_pct: pctNum, p_bonus_vast: vastNum,
+      p_bonus_modus: bonusModus, p_automatisch: !eenmalig && soort === 'bonus_punten' ? automatisch : false,
+      p_van: vi, p_tot: ti, p_eenmalig: eenmalig,
+      p_doel_provincies: doelProv, p_doel_segment: segment,
+      p_uitlichten: false, p_superster: false, p_push: false,
     })
     setBezig(false)
-    if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
+    if (error) return setFout(error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.' : 'Indienen mislukt. Probeer opnieuw.')
+    const kost = (data as { kost?: number } | null)?.kost ?? 0
+    const nieuwSaldo = (data as { credits?: number } | null)?.credits
+    if (typeof nieuwSaldo === 'number') setCredits(nieuwSaldo)
+    setOkMelding('Actie ingediend ter goedkeuring. ' + kost + ' credits gereserveerd (terugbetaald bij afkeuring).')
     setTitel(''); setBeschrijving(''); setPct(''); setBonusVast(''); setBonusModus('procent'); setAutomatisch(true); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
     herlaad()
@@ -469,8 +475,9 @@ export default function Acties() {
           </View>
 
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
+          {okMelding ? <Text style={{ color: C.green, fontSize: 13, fontWeight: '700', marginTop: 10 }}>{okMelding}</Text> : null}
           <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
-            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie toevoegen</Text>}
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>+ Actie indienen</Text>}
           </Pressable>
         </View>
 
@@ -486,7 +493,10 @@ export default function Acties() {
                     {isSuperster(a.superster_tot) ? <Text style={s.superBadge}>⭐ superster</Text> : null}
                     {a.eenmalig ? <Text style={s.voucherBadge}>🎟️ voucher</Text> : null}
                     {isGeboost(a.boost_tot) ? <Text style={s.boostBadge}>⭐ tot {boostTot(a.boost_tot!)}</Text> : null}
+                    {a.status === 'ingediend' ? <Text style={s.voucherBadge}>⏳ in behandeling</Text> : null}
+                    {a.status === 'afgekeurd' ? <Text style={[s.voucherBadge, { color: '#E11D48' }]}>✕ afgekeurd</Text> : null}
                   </View>
+                  {a.status === 'afgekeurd' && a.afkeur_reden ? <Text style={[s.actieSub, { color: '#E11D48' }]}>Reden: {a.afkeur_reden}</Text> : null}
                   <Text style={s.actieSub}>
                     {naamVan(a.attractie_id)}
                     {!a.eenmalig && a.soort === 'bonus_punten'

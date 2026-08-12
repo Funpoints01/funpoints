@@ -381,8 +381,21 @@ function Uitbaters() {
   const [nieuw, setNieuw] = useState<{ naam: string; email: string; pakket: 'start' | 'volledig' }>({ naam: '', email: '', pakket: 'volledig' })
   const [maakBezig, setMaakBezig] = useState(false)
   const [maakMelding, setMaakMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+  const [teVal, setTeVal] = useState<any[]>([])
+  const [afkeurVoor, setAfkeurVoor] = useState<string | null>(null)
+  const [afkeurReden, setAfkeurReden] = useState('')
   useEffect(() => { herlaad() }, [])
-  async function herlaad() { const { data } = await supabase.rpc('mgmt_uitbaters'); setLijst(data ?? []); setLaden(false) }
+  async function herlaad() {
+    const { data } = await supabase.rpc('mgmt_uitbaters'); setLijst(data ?? [])
+    const { data: tv } = await supabase.rpc('mgmt_acties_tevalideren'); setTeVal(tv ?? [])
+    setLaden(false)
+  }
+  async function keurGoed(id: string) { await supabase.rpc('mgmt_actie_goedkeuren', { p_id: id }); herlaad() }
+  async function keurAf(id: string) {
+    if (!afkeurReden.trim()) return
+    await supabase.rpc('mgmt_actie_afkeuren', { p_id: id, p_reden: afkeurReden.trim() })
+    setAfkeurVoor(null); setAfkeurReden(''); herlaad()
+  }
 
   async function maakAccount() {
     setMaakMelding(null)
@@ -453,6 +466,37 @@ function Uitbaters() {
         <Pressable onPress={maakAccount} disabled={maakBezig} style={[s.credKnop, { marginTop: 12, alignItems: 'center', opacity: maakBezig ? 0.6 : 1 }]}>
           <Text style={s.credKnopT}>{maakBezig ? 'Bezig…' : '+ Uitnodiging sturen'}</Text>
         </Pressable>
+      </View>
+
+      <View style={[s.blok, { marginTop: 6 }]}>
+        <Text style={s.attrNaam}>Acties valideren{teVal.length ? ' (' + teVal.length + ')' : ''}</Text>
+        {teVal.length === 0
+          ? <Text style={[s.blokSub, { marginTop: 6 }]}>Geen acties in behandeling.</Text>
+          : teVal.map((a) => (
+            <View key={a.id} style={{ borderTopWidth: 1, borderTopColor: 'rgba(36,27,58,0.10)', paddingTop: 12, marginTop: 12 }}>
+              <Text style={s.attrNaam}>{a.titel}</Text>
+              <Text style={s.blokSub}>{a.kraam} · {a.uitbater} · {a.van} → {a.tot}</Text>
+              {a.beschrijving ? <Text style={[s.blokSub, { marginTop: 4 }]}>{a.beschrijving}</Text> : null}
+              <Text style={[s.blokSub, { marginTop: 4 }]}>
+                Bereik ≈ {a.bereik} · {a.kost} credits{a.uitlichten ? ' · uitgelicht' : ''}{a.superster ? ' · superster' : ''}{a.push ? ' · push' : ''}
+              </Text>
+              {afkeurVoor === a.id ? (
+                <View style={{ marginTop: 8 }}>
+                  <TextInput style={[s.credInput, { width: '100%', marginBottom: 8 }]} value={afkeurReden}
+                    onChangeText={setAfkeurReden} placeholder="Reden van afkeuring" placeholderTextColor={C.muted} />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable onPress={() => keurAf(a.id)} style={[s.credKnop, { backgroundColor: '#E11D48' }]}><Text style={s.credKnopT}>Bevestig afkeuring</Text></Pressable>
+                    <Pressable onPress={() => { setAfkeurVoor(null); setAfkeurReden('') }} style={[s.credKnop, { backgroundColor: C.muted }]}><Text style={s.credKnopT}>Annuleren</Text></Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <Pressable onPress={() => keurGoed(a.id)} style={[s.credKnop, { backgroundColor: '#10B981' }]}><Text style={s.credKnopT}>Goedkeuren</Text></Pressable>
+                  <Pressable onPress={() => { setAfkeurVoor(a.id); setAfkeurReden('') }} style={[s.credKnop, { backgroundColor: '#E11D48' }]}><Text style={s.credKnopT}>Afkeuren</Text></Pressable>
+                </View>
+              )}
+            </View>
+          ))}
       </View>
 
       <View style={[s.blok, { marginTop: 6 }]}>
