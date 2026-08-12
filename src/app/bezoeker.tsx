@@ -266,7 +266,7 @@ function Home({ session }: { session: Session }) {
   }
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return
     setOnline((navigator as any).onLine !== false)
     const on = () => setOnline(true), off = () => setOnline(false)
     window.addEventListener('online', on); window.addEventListener('offline', off)

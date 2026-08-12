@@ -278,7 +278,7 @@ function Boeken({ session }: { session: Session }) {
     sync()
     const naarOnline = () => { setOnline(true); sync() }
     const naarOffline = () => setOnline(false)
-    if (typeof window !== 'undefined') {
+    if (isWeb && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       setOnline((navigator as any).onLine !== false)
       window.addEventListener('online', naarOnline)
       window.addEventListener('offline', naarOffline)
@@ -286,7 +286,7 @@ function Boeken({ session }: { session: Session }) {
     const iv = setInterval(sync, 20000)
     return () => {
       actief = false; clearInterval(iv)
-      if (typeof window !== 'undefined') {
+      if (isWeb && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('online', naarOnline)
         window.removeEventListener('offline', naarOffline)
       }
