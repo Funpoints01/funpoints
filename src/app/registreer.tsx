@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase'
 import { useT } from '../lib/i18n'
 import { DatumVeld } from '../components/DatumVeld'
 
+const BEVESTIG_URL = 'https://app.funpoints.be/bevestigd'
+
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
   muted: '#7A7290', coral: '#FB7185', red: '#E11D48',
@@ -48,6 +50,9 @@ export default function Registreer() {
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
   const [kaartKlaar, setKaartKlaar] = useState(false)
+  const [bevestigMail, setBevestigMail] = useState('')
+  const [herstuurBezig, setHerstuurBezig] = useState(false)
+  const [herstuurMelding, setHerstuurMelding] = useState('')
   const insets = useSafeAreaInsets()
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 60 : insets.top + 14 }]
 
@@ -71,7 +76,24 @@ export default function Registreer() {
     const { data: vrij } = await supabase.rpc('gebruikersnaam_vrij', { p_naam: gnaam })
     if (vrij === false) { setBezig(false); return setFout(t('Die gebruikersnaam is al bezet, kies een andere.')) }
 
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: ww })
+    // Profielvelden gaan mee als metadata; een DB-trigger maakt de
+    // bezoeker-rij aan (werkt ook als er nog geen sessie is bij
+    // e-mailbevestiging). Zie funpoints_email_bevestiging.sql.
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: ww,
+      options: {
+        emailRedirectTo: BEVESTIG_URL,
+        data: {
+          rol: 'bezoeker',
+          naam: `${voornaam.trim()} ${achternaam.trim()}`,
+          gebruikersnaam: gnaam,
+          geboortedatum: iso,
+          postcode: postcode.trim(),
+          ...(code ? { claim_code: String(code).trim() } : {}),
+        },
+      },
+    })
     if (error) {
       setBezig(false)
       return setFout(
@@ -80,32 +102,56 @@ export default function Registreer() {
           : 'Registreren mislukt. Controleer je e-mailadres.'
       )
     }
-    if (!data.session || !data.user) {
+    // Bevestiging AAN: geen sessie -> toon het "bevestig je e-mail"-scherm.
+    if (!data.session) {
       setBezig(false)
-      return setFout(t('Account aangemaakt, maar e-mailbevestiging staat nog aan in Supabase.'))
+      setBevestigMail(email.trim())
+      return
     }
-    // Profiel opslaan
-    const { error: e2 } = await supabase.from('bezoeker').insert({
-      auth_user_id: data.user.id, naam: `${voornaam.trim()} ${achternaam.trim()}`, email: email.trim(),
-      gebruikersnaam: gnaam, geboortedatum: iso, postcode: postcode.trim(),
-    })
-    if (e2) {
-      setBezig(false)
-      return setFout(
-        (e2 as any).code === '23505' || e2.message.toLowerCase().includes('gebruikersnaam')
-          ? 'Die gebruikersnaam is net bezet geraakt, kies een andere.'
-          : 'Account gemaakt, maar je profiel opslaan mislukte. Probeer opnieuw.'
-      )
-    }
-    // Kaartje koppelen (punten verhuizen mee) — niet-blokkerend
+    // Bevestiging UIT: sessie bestaat meteen, de trigger maakte het profiel al.
+    // Een gekoppeld kaartje afronden, anders meteen door naar de app.
     if (code) {
-      await supabase.rpc('claim_via_code', { p_claim_code: String(code).trim() })
+      await supabase.rpc('claim_pending')
       setBezig(false)
       setKaartKlaar(true)
       return
     }
     setBezig(false)
     router.replace('/bezoeker')
+  }
+
+  async function herstuurBevestiging() {
+    setHerstuurMelding('')
+    setHerstuurBezig(true)
+    const { error } = await supabase.auth.resend({
+      type: 'signup', email: bevestigMail,
+      options: { emailRedirectTo: BEVESTIG_URL },
+    })
+    setHerstuurBezig(false)
+    setHerstuurMelding(error
+      ? t('Versturen mislukt, probeer straks opnieuw.')
+      : t('Mail opnieuw verstuurd. Kijk ook even in je spam.'))
+  }
+
+  if (bevestigMail) {
+    return (
+      <View style={[s.scherm, wrapC, { justifyContent: 'center' }]}>
+        <View style={[s.kaart, { alignItems: 'center' }]}>
+          <Text style={{ fontSize: 52, marginBottom: 4 }}>📬</Text>
+          <Text style={s.titel}>{t('Bevestig je e-mail')}</Text>
+          <Text style={[s.sub, { textAlign: 'center' }]}>
+            {t('We stuurden een bevestigingsmail naar')} {bevestigMail}. {t('Klik de link in die mail om je account te activeren — daarna kan je inloggen.')}
+          </Text>
+          {herstuurMelding ? <Text style={[s.veldHint, { textAlign: 'center', marginTop: 12 }]}>{herstuurMelding}</Text> : null}
+          <Pressable onPress={herstuurBevestiging} disabled={herstuurBezig} style={[s.knop, s.knopCoral, { alignSelf: 'stretch' }, herstuurBezig && s.knopUit]}>
+            {herstuurBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Mail opnieuw sturen')}</Text>}
+          </Pressable>
+          <Pressable onPress={() => router.replace('/bezoeker')} hitSlop={8} style={{ marginTop: 16, alignItems: 'center' }}>
+            <Text style={s.link}>{t('Naar inloggen')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    )
   }
 
   if (kaartKlaar) {

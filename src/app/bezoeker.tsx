@@ -233,6 +233,9 @@ function Home({ session }: { session: Session }) {
   }
 
   useEffect(() => { pushStatus().then(setPush) }, [])
+  // Een kaartje dat bij registratie (met e-mailbevestiging) nog niet
+  // gekoppeld kon worden, wordt hier bij de eerste login afgerond.
+  useEffect(() => { supabase.rpc('claim_pending').then(() => {}, () => {}) }, [])
 
   const laadOngelezen = useCallback(async () => {
     const { count } = await supabase.from('melding').select('id', { count: 'exact', head: true }).eq('gelezen', false)
