@@ -186,7 +186,8 @@ function Home({ session }: { session: Session }) {
   const [checkins, setCheckins] = useState(0)
   const [kermissen, setKermissen] = useState<Kermis[]>([])
   const [acties, setActies] = useState<any[]>([])
-  const [superAct, setSuperAct] = useState<any | null>(null)
+  const [superActs, setSuperActs] = useState<any[]>([])
+  const [ssIdx, setSsIdx] = useState(0)
   const [stats, setStats] = useState({ punten: 0, bezocht: 0, streak: 0, lunapark: false })
   const [gevolgdAantal, setGevolgdAantal] = useState(0)
   const [dezeWeek, setDezeWeek] = useState<any[]>([])
@@ -250,6 +251,12 @@ function Home({ session }: { session: Session }) {
   // Een kaartje dat bij registratie (met e-mailbevestiging) nog niet
   // gekoppeld kon worden, wordt hier bij de eerste login afgerond.
   useEffect(() => { supabase.rpc('claim_pending').then(() => {}, () => {}) }, [])
+  // Superster-banner roteert om de 5s door de (max 5) actieve supersters.
+  useEffect(() => {
+    if (superActs.length <= 1) return
+    const iv = setInterval(() => setSsIdx((i) => i + 1), 5000)
+    return () => clearInterval(iv)
+  }, [superActs.length])
 
   const laadOngelezen = useCallback(async () => {
     const { count } = await supabase.from('melding').select('id', { count: 'exact', head: true }).eq('gelezen', false)
@@ -318,8 +325,8 @@ function Home({ session }: { session: Session }) {
       ;(sd ?? []).forEach((r: any) => { doelMap[r.attractie_id] = { naam: r.naam, punten: r.punten } })
       setDoelen(doelMap)
 
-      const { data: ss } = await supabase.rpc('actieve_superster')
-      setSuperAct(ss ?? null)
+      const { data: ss } = await supabase.rpc('actieve_supersters')
+      setSuperActs(Array.isArray(ss) ? ss : [])
 
       const saldoMap = new Map<string, number>()
       ;(sal ?? []).forEach((r: any) => saldoMap.set(r.attractie_id, (saldoMap.get(r.attractie_id) ?? 0) + (r.saldo ?? 0)))
@@ -413,7 +420,8 @@ function Home({ session }: { session: Session }) {
     { icon: '🔥', titel: 'Streakmeester', waarde: stats.streak, basis: [2, 3, 5, 7, 14], kleur: C.coralD, eenheid: 'dagen op rij' },
   ].map((t) => ({ ...t, ...niveau(t.waarde, t.basis) }))
   const voornaam = naam ? naam.split(' ')[0] : ''
-  const gewoneActies = acties.filter((a: any) => a.id !== superAct?.id)
+  const huidigeSuper = superActs.length ? superActs[ssIdx % superActs.length] : null
+  const gewoneActies = acties.filter((a: any) => !superActs.some((x) => x.id === a.id))
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 74 : insets.top + 60 }]
 
   return (
@@ -470,10 +478,11 @@ function Home({ session }: { session: Session }) {
           </Pressable>
         ) : null}
 
-        {superAct ? (
+        {huidigeSuper ? (
           <SupersterBanner
-            actie={superAct}
-            onPress={() => (superAct.eenmalig ? toonVoucher(superAct) : router.push(`/kraam/${superAct.attractie_id}`))}
+            key={huidigeSuper.id}
+            actie={huidigeSuper}
+            onPress={() => (huidigeSuper.eenmalig ? toonVoucher(huidigeSuper) : router.push(`/kraam/${huidigeSuper.attractie_id}`))}
           />
         ) : null}
 

@@ -93,6 +93,9 @@ export default function Acties() {
   const [acties, setActies] = useState<Actie[]>([])
   const [credits, setCredits] = useState(0)
   const [okMelding, setOkMelding] = useState('')
+  const [addUitlichten, setAddUitlichten] = useState(false)
+  const [addSuperster, setAddSuperster] = useState(false)
+  const [addPush, setAddPush] = useState(false)
   const [pakket, setPakket] = useState('volledig')
   const [laden, setLaden] = useState(true)
 
@@ -286,7 +289,7 @@ export default function Acties() {
       p_bonus_modus: bonusModus, p_automatisch: !eenmalig && soort === 'bonus_punten' ? automatisch : false,
       p_van: vi, p_tot: ti, p_eenmalig: eenmalig,
       p_doel_provincies: doelProv, p_doel_segment: segment,
-      p_uitlichten: false, p_superster: false, p_push: false,
+      p_uitlichten: addUitlichten, p_superster: addSuperster, p_push: addPush,
     })
     setBezig(false)
     if (error) return setFout(error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.' : 'Indienen mislukt. Probeer opnieuw.')
@@ -296,6 +299,7 @@ export default function Acties() {
     setOkMelding('Actie ingediend ter goedkeuring. ' + kost + ' credits gereserveerd (terugbetaald bij afkeuring).')
     setTitel(''); setBeschrijving(''); setPct(''); setBonusVast(''); setBonusModus('procent'); setAutomatisch(true); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
+    setAddUitlichten(false); setAddSuperster(false); setAddPush(false)
     herlaad()
   }
 
@@ -474,6 +478,24 @@ export default function Acties() {
               : <Text style={s.tellerT}><Text style={s.tellerGetal}>≈ {doelTel}</Text> bezoeker(s) worden met deze actie getarget</Text>}
           </View>
 
+          <Text style={[s.label, { marginTop: 16 }]}>Extra zichtbaarheid (optioneel)</Text>
+          <View style={s.chips}>
+            <Pressable onPress={() => setAddUitlichten((v) => !v)} style={[s.chip, addUitlichten && s.chipActief]}>
+              <Text style={[s.chipT, addUitlichten && s.chipTActief]}>Uitlichten +2/p</Text>
+            </Pressable>
+            <Pressable onPress={() => setAddSuperster((v) => !v)} style={[s.chip, addSuperster && s.chipActief]}>
+              <Text style={[s.chipT, addSuperster && s.chipTActief]}>Superster +3/p</Text>
+            </Pressable>
+            <Pressable onPress={() => setAddPush((v) => !v)} style={[s.chip, addPush && s.chipActief]}>
+              <Text style={[s.chipT, addPush && s.chipTActief]}>Pushmelding +5/p</Text>
+            </Pressable>
+          </View>
+          <Text style={s.campProv}>
+            {doelTel === null
+              ? 'Basis 1 credit per persoon; add-ons komen erbovenop.'
+              : `Kost: ${doelTel} × ${1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0)} = ${doelTel * (1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0))} credits (gereserveerd tot goedkeuring). Je saldo: ${credits}.`}
+          </Text>
+
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           {okMelding ? <Text style={{ color: C.green, fontSize: 13, fontWeight: '700', marginTop: 10 }}>{okMelding}</Text> : null}
           <Pressable onPress={toevoegen} disabled={bezig} style={[s.knop, s.knopViolet, bezig && s.knopUit]}>
@@ -526,11 +548,7 @@ export default function Acties() {
                     <Text style={s.annuleer}>Annuleren</Text>
                   </Pressable>
                 </View>
-              ) : (
-                <Pressable onPress={() => { setBoostVoor(a.id); setBoostFout(''); telBoost(a) }} style={s.boostKnop}>
-                  <Text style={s.boostKnopT}>⭐ {isGeboost(a.boost_tot) ? 'Uitlichting verlengen' : 'Boost deze actie'}</Text>
-                </Pressable>
-              )}
+              ) : null}
 
               {ssVoor === a.id ? (
                 <View style={s.ssVak}>
@@ -589,11 +607,7 @@ export default function Acties() {
                     <Text style={s.annuleer}>Sluiten</Text>
                   </Pressable>
                 </View>
-              ) : (
-                <Pressable onPress={() => { setSsVoor(a.id); setSsMelding(null); setSsTelling(null); telSuperster(ssPc, ssRadius) }} style={s.ssKnop}>
-                  <Text style={s.ssKnopT}>⭐ {isSuperster(a.superster_tot) ? 'Superster verlengen' : 'Superster activeren'}</Text>
-                </Pressable>
-              )}
+              ) : null}
 
               {campVoor === a.id ? (
                 <View style={s.campVak}>
@@ -646,11 +660,7 @@ export default function Acties() {
                     <Text style={s.annuleer}>Sluiten</Text>
                   </Pressable>
                 </View>
-              ) : (
-                <Pressable onPress={() => openCampagne(a.id)} style={s.pushKnop}>
-                  <Text style={s.pushKnopT}>📣 Verstuur pushmelding</Text>
-                </Pressable>
-              )}
+              ) : null}
             </View>
           ))}
       </ScrollView>
