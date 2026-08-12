@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -241,11 +241,13 @@ function Toegang({ session }: { session: Session }) {
     setMelding(error ? 'Code sturen mislukt — probeer opnieuw.' : 'We stuurden een code naar je e-mail. Kijk ook in je spam.')
   }
 
+  const gestuurd = useRef(false)
   useEffect(() => {
     supabase.rpc('foorkramer_login_status').then(({ data }) => {
       const d = data as { foorkramer?: boolean; sessie_ok?: boolean } | null
       if (!d?.foorkramer || d?.sessie_ok) { setStatus('ok'); return }
-      setStatus('tfa'); stuurCode()
+      setStatus('tfa')
+      if (!gestuurd.current) { gestuurd.current = true; stuurCode() }
     })
   }, [])
 
@@ -255,7 +257,15 @@ function Toegang({ session }: { session: Session }) {
     setBezig(true)
     const { data, error } = await supabase.rpc('foorkramer_2fa_verifieer', { p_code: code.trim() })
     setBezig(false)
-    if (error || !(data as { ok?: boolean })?.ok) { setFout('Verkeerde of verlopen code.'); return }
+    const res = data as { ok?: boolean; reden?: string } | null
+    if (error || !res?.ok) {
+      const r = res?.reden
+      setFout(
+        r === 'VERLOPEN' ? 'Code verlopen — vraag een nieuwe aan.'
+        : r === 'TE_VEEL_POGINGEN' ? 'Te veel pogingen — vraag een nieuwe code aan.'
+        : 'Verkeerde code — gebruik de code uit de laatste mail.')
+      return
+    }
     setStatus('ok')
   }
 
