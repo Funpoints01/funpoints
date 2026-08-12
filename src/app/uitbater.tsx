@@ -41,11 +41,21 @@ function Login() {
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
+  const [resetMelding, setResetMelding] = useState('')
   async function login() {
     setFout(''); setBezig(true)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: ww })
     setBezig(false)
     if (error) setFout('Inloggen mislukt — controleer je e-mail en wachtwoord.')
+  }
+  async function wachtwoordVergeten() {
+    setFout('')
+    if (!email.trim()) { setResetMelding('Vul eerst je e-mailadres hierboven in.'); return }
+    setResetMelding('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: 'https://app.funpoints.be/herstel' })
+    setResetMelding(error
+      ? 'Versturen mislukt, probeer straks opnieuw.'
+      : 'We stuurden je een e-mail om een nieuw wachtwoord in te stellen. Kijk ook in je spam.')
   }
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -66,6 +76,10 @@ function Login() {
           <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopViolet, { marginTop: 18 }, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Inloggen</Text>}
           </Pressable>
+          <Pressable onPress={wachtwoordVergeten} hitSlop={8} style={{ marginTop: 14, alignItems: 'center' }}>
+            <Text style={{ color: C.muted, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' }}>Wachtwoord vergeten?</Text>
+          </Pressable>
+          {resetMelding ? <Text style={{ color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 10, lineHeight: 18 }}>{resetMelding}</Text> : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

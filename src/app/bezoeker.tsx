@@ -51,6 +51,7 @@ function Login() {
   const [ww, setWw] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
+  const [resetMelding, setResetMelding] = useState('')
   const insets = useSafeAreaInsets()
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   async function login() {
@@ -58,6 +59,15 @@ function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: ww })
     setBezig(false)
     if (error) setFout(t('Inloggen mislukt — controleer je e-mail en wachtwoord.'))
+  }
+  async function wachtwoordVergeten() {
+    setFout('')
+    if (!email.trim()) { setResetMelding(t('Vul eerst je e-mailadres hierboven in.')); return }
+    setResetMelding('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: 'https://app.funpoints.be/herstel' })
+    setResetMelding(error
+      ? t('Versturen mislukt, probeer straks opnieuw.')
+      : t('We stuurden je een e-mail om een nieuw wachtwoord in te stellen. Kijk ook in je spam.'))
   }
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -80,6 +90,10 @@ function Login() {
           <Pressable onPress={login} disabled={bezig} style={[s.knop, s.knopCoral, bezig && s.knopUit]}>
             {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Inloggen')}</Text>}
           </Pressable>
+          <Pressable onPress={wachtwoordVergeten} hitSlop={8} style={{ marginTop: 14, alignItems: 'center' }}>
+            <Text style={{ color: C.muted, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' }}>{t('Wachtwoord vergeten?')}</Text>
+          </Pressable>
+          {resetMelding ? <Text style={[s.hint, { marginTop: 8 }]}>{resetMelding}</Text> : null}
         </View>
         <Pressable onPress={() => router.push('/registreer')} style={[s.knop, s.knopWit]}>
           <Text style={s.knopWitT}>{t('Account aanmaken')}</Text>
