@@ -51,7 +51,7 @@ export default function FoorkramerScherm() {
   }
   if (!session) return <Login />
   if (toonPwaGids && !gidsKlaar) return <PwaGids onVerder={() => setGidsKlaar(true)} />
-  return <Boeken session={session} />
+  return <Toegang session={session} />
 }
 
 function Stap({ n, t }: { n: string; t: string }) {
@@ -228,6 +228,65 @@ function Scanner({ onScan, onSluit }: { onScan: (code: string) => void; onSluit:
   )
 }
 
+function Toegang({ session }: { session: Session }) {
+  const [status, setStatus] = useState<'laden' | 'ok' | 'tfa'>('laden')
+  const [code, setCode] = useState('')
+  const [bezig, setBezig] = useState(false)
+  const [fout, setFout] = useState('')
+  const [melding, setMelding] = useState('')
+
+  async function stuurCode() {
+    setMelding(''); setFout('')
+    const { error } = await supabase.functions.invoke('foorkramer-2fa-start', { body: {} })
+    setMelding(error ? 'Code sturen mislukt — probeer opnieuw.' : 'We stuurden een code naar je e-mail. Kijk ook in je spam.')
+  }
+
+  useEffect(() => {
+    supabase.rpc('foorkramer_login_status').then(({ data }) => {
+      const d = data as { foorkramer?: boolean; sessie_ok?: boolean } | null
+      if (!d?.foorkramer || d?.sessie_ok) { setStatus('ok'); return }
+      setStatus('tfa'); stuurCode()
+    })
+  }, [])
+
+  async function verifieer() {
+    setFout('')
+    if (code.trim().length < 6) { setFout('Geef de 6-cijfercode.'); return }
+    setBezig(true)
+    const { data, error } = await supabase.rpc('foorkramer_2fa_verifieer', { p_code: code.trim() })
+    setBezig(false)
+    if (error || !(data as { ok?: boolean })?.ok) { setFout('Verkeerde of verlopen code.'); return }
+    setStatus('ok')
+  }
+
+  if (status === 'laden') return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.green} size="large" /></View>
+  if (status === 'ok') return <Boeken session={session} />
+
+  return (
+    <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
+        <Logo />
+        <Text style={s.titel}>Verificatie</Text>
+        <Text style={s.sub}>Voer de 6-cijfercode in die we naar je e-mail stuurden.</Text>
+        <View style={s.kaart}>
+          <Text style={s.label}>Code</Text>
+          <TextInput style={s.input} value={code}
+            onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+            keyboardType="number-pad" placeholder="123456" placeholderTextColor={C.muted} />
+          {melding ? <Text style={[s.sub, { marginTop: 10 }]}>{melding}</Text> : null}
+          {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
+          <Pressable onPress={verifieer} disabled={bezig} style={[s.knop, s.knopGroen, bezig && s.knopUit]}>
+            {bezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopGroenT}>Bevestigen</Text>}
+          </Pressable>
+          <Pressable onPress={stuurCode} hitSlop={8} style={{ marginTop: 14, alignItems: 'center' }}>
+            <Text style={s.terug}>Geen code? Opnieuw sturen</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  )
+}
+
 function Boeken({ session }: { session: Session }) {
   const router = useRouter()
   const [naam, setNaam] = useState<string | null>(null)
@@ -262,13 +321,12 @@ function Boeken({ session }: { session: Session }) {
   }
 
   useEffect(() => {
-    supabase.from('attractie').select('naam, snelknoppen')
-      .eq('auth_user_id', session.user.id).maybeSingle()
-      .then(({ data }) => {
-        setNaam(data?.naam ?? null)
-        if (data?.snelknoppen && (data.snelknoppen as number[]).length) setPresets(data.snelknoppen as number[])
-        setNaamLaden(false)
-      })
+    supabase.rpc('mijn_scan_kraam').then(({ data }) => {
+      const d = data as { naam?: string; snelknoppen?: number[] } | null
+      setNaam(d?.naam ?? null)
+      if (d?.snelknoppen && d.snelknoppen.length) setPresets(d.snelknoppen)
+      setNaamLaden(false)
+    })
   }, [])
 
   useEffect(() => {
