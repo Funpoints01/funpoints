@@ -142,6 +142,9 @@ export default function Registreer() {
           <Text style={[s.sub, { textAlign: 'center' }]}>
             {t('We stuurden een bevestigingsmail naar')} {bevestigMail}. {t('Klik de link in die mail om je account te activeren — daarna kan je inloggen.')}
           </Text>
+          <Text style={[s.veldHint, { textAlign: 'center', marginTop: 8 }]}>
+            {t('Geen mail ontvangen? Kijk ook even in je spam.')}
+          </Text>
           {herstuurMelding ? <Text style={[s.veldHint, { textAlign: 'center', marginTop: 12 }]}>{herstuurMelding}</Text> : null}
           <Pressable onPress={herstuurBevestiging} disabled={herstuurBezig} style={[s.knop, s.knopCoral, { alignSelf: 'stretch' }, herstuurBezig && s.knopUit]}>
             {herstuurBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopCoralT}>{t('Mail opnieuw sturen')}</Text>}
