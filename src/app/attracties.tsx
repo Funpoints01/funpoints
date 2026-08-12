@@ -14,7 +14,8 @@ const C = {
 }
 const SOORTEN = ['lunapark', 'schietkraam', 'eendjes', 'ander'] as const
 
-type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null; hoofdprijs_naam: string | null; hoofdprijs_punten: number | null; snelknoppen: number[] | null }
+type Attr = { id: string; naam: string; soort: string; auth_user_id: string | null; hoofdprijs_naam: string | null; hoofdprijs_punten: number | null; snelknoppen: number[] | null; max_punten_dag: number | null }
+type FkRow = { id: string; email: string; naam: string | null; status: string; geverifieerd: boolean }
 
 export default function Attracties() {
   const router = useRouter()
@@ -35,6 +36,13 @@ export default function Attracties() {
   const [lBezig, setLBezig] = useState(false)
   const [lFout, setLFout] = useState('')
   const [bevestigDel, setBevestigDel] = useState<string | null>(null)
+  const [fkLijst, setFkLijst] = useState<Record<string, FkRow[]>>({})
+  const [fkVoor, setFkVoor] = useState<string | null>(null)
+  const [fkEmail, setFkEmail] = useState('')
+  const [fkBezig, setFkBezig] = useState(false)
+  const [fkMelding, setFkMelding] = useState('')
+  const [limVoor, setLimVoor] = useState<string | null>(null)
+  const [limText, setLimText] = useState('')
 
   const [prijsVoor, setPrijsVoor] = useState<string | null>(null)
   const [pNaam, setPNaam] = useState('')
@@ -77,9 +85,10 @@ export default function Attracties() {
     const { data: u } = await supabase.from('uitbater').select('id, pakket').eq('auth_user_id', session!.user.id).maybeSingle()
     setUitbaterId(u?.id ?? null)
     setPakket(((u as any)?.pakket as string) ?? 'volledig')
-    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten, snelknoppen').order('naam')
+    const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten, snelknoppen, max_punten_dag').order('naam')
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
+    lijst.forEach((x) => laadFoorkramers(x.id))
     const paren = await Promise.all(
       lijst.filter((x) => x.auth_user_id).map(async (x) => {
         const { data: em } = await supabase.rpc('attractie_login_email', { p_attractie_id: x.id })
@@ -107,6 +116,42 @@ export default function Attracties() {
   async function verwijder(id: string) {
     await supabase.from('attractie').delete().eq('id', id)
     setBevestigDel(null); setAttracties((a) => a.filter((x) => x.id !== id))
+  }
+
+  async function laadFoorkramers(attractieId: string) {
+    const { data } = await supabase.rpc('foorkramer_lijst', { p_attractie_id: attractieId })
+    setFkLijst((m) => ({ ...m, [attractieId]: ((data as FkRow[]) ?? []) }))
+  }
+  async function nodigUit(attractieId: string) {
+    setFkMelding('')
+    if (!fkEmail.trim()) { setFkMelding('Geef een e-mailadres.'); return }
+    setFkBezig(true)
+    const { data, error } = await supabase.functions.invoke('foorkramer-uitnodigen', {
+      body: { attractie_id: attractieId, email: fkEmail.trim() },
+    })
+    setFkBezig(false)
+    const m = String((data as { error?: string } | null)?.error || error?.message || '')
+    if (m) {
+      setFkMelding(
+        m.includes('MAIL_BESTAAT_AL') ? 'Dit e-mailadres heeft al een account.'
+        : m.includes('EIGEN_ADRES') ? 'Dit is je eigen adres — gebruik "Ik sta zelf in dit kraam".'
+        : 'Uitnodigen mislukt. Controleer het adres.')
+      return
+    }
+    setFkVoor(null); setFkEmail(''); laadFoorkramers(attractieId)
+  }
+  async function trekIn(fkId: string, attractieId: string) {
+    await supabase.rpc('foorkramer_intrekken', { p_id: fkId })
+    laadFoorkramers(attractieId)
+  }
+  async function ikZelf(attractieId: string) {
+    const { error } = await supabase.rpc('foorkramer_ikzelf', { p_attractie_id: attractieId })
+    if (!error) laadFoorkramers(attractieId)
+  }
+  async function zetLimiet(attractieId: string) {
+    const n = limText.trim() ? parseInt(limText, 10) : null
+    await supabase.rpc('attractie_zet_daglimiet', { p_attractie_id: attractieId, p_limiet: (n && n > 0) ? n : null })
+    setLimVoor(null); herlaad()
   }
 
   async function resetWw(attractieId: string) {
@@ -186,9 +231,9 @@ export default function Attracties() {
                   <Text style={s.attrNaam}>{a.naam}</Text>
                   <Text style={s.attrSoort}>{a.soort}</Text>
                 </View>
-                {a.auth_user_id
-                  ? <Text style={s.badgeOk}>✓ login actief</Text>
-                  : <Text style={s.badgeGeen}>geen login</Text>}
+                {(fkLijst[a.id]?.length ?? 0) > 0
+                  ? <Text style={s.badgeOk}>👤 {fkLijst[a.id]!.length} scanner(s)</Text>
+                  : <Text style={s.badgeGeen}>geen scanner</Text>}
               </View>
 
               {pakket === 'volledig' ? (prijsVoor === a.id ? (
@@ -249,81 +294,84 @@ export default function Attracties() {
                 </Pressable>
               )) : null}
 
-              {a.auth_user_id ? (
-                resetVoor === a.id ? (
-                  <View style={s.loginVak}>
-                    <Text style={s.blokTitel}>🔑 Wachtwoord resetten</Text>
-                    <Text style={s.loginEmail}>{emails[a.id] || 'foorkramer-login'}</Text>
-                    <Text style={[s.label, { marginTop: 12 }]}>Nieuw wachtwoord</Text>
-                    <TextInput style={s.input} value={rWw} onChangeText={setRWw}
-                      secureTextEntry placeholder="minstens 6 tekens" placeholderTextColor={C.muted} />
-                    {rFout ? <View style={s.foutBox}><Text style={s.foutT}>{rFout}</Text></View> : null}
+              <View style={s.loginVak}>
+                <Text style={s.blokTitel}>👤 Foorkramers</Text>
+                <Text style={s.tip}>Wie mag punten scannen voor dit kraam. Elke foorkramer krijgt een uitnodiging per e-mail en kiest zelf zijn wachtwoord.</Text>
+
+                {(fkLijst[a.id] ?? []).map((f) => (
+                  <View key={f.id} style={s.loginInfo}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.loginInfoEmail} selectable>{f.email}</Text>
+                      <Text style={s.tip}>
+                        {f.status === 'uitgenodigd' ? '✉️ uitgenodigd — wacht op wachtwoord'
+                          : f.geverifieerd ? '🟢 actief (ingelogd)' : '✓ actief'}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => trekIn(f.id, a.id)} style={[s.knopKlein, { borderColor: C.red }]}>
+                      <Text style={[s.knopKleinT, { color: C.red }]}>Intrekken</Text>
+                    </Pressable>
+                  </View>
+                ))}
+
+                {fkVoor === a.id ? (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={s.label}>E-mail van de foorkramer</Text>
+                    <TextInput style={s.input} value={fkEmail} onChangeText={setFkEmail}
+                      autoCapitalize="none" keyboardType="email-address"
+                      placeholder="medewerker@voorbeeld.be" placeholderTextColor={C.muted} />
+                    {fkMelding ? <Text style={s.tip}>{fkMelding}</Text> : null}
                     <View style={s.rij}>
-                      <Pressable onPress={() => resetWw(a.id)} disabled={rBezig}
-                        style={[s.knop, s.knopViolet, s.knopHalf, rBezig && s.knopUit]}>
-                        {rBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Opslaan</Text>}
+                      <Pressable onPress={() => nodigUit(a.id)} disabled={fkBezig} style={[s.knop, s.knopViolet, s.knopHalf, fkBezig && s.knopUit]}>
+                        {fkBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Uitnodiging sturen</Text>}
                       </Pressable>
-                      <Pressable onPress={() => { setResetVoor(null); setRFout('') }} style={[s.knop, s.knopWit, s.knopHalf]}>
+                      <Pressable onPress={() => { setFkVoor(null); setFkMelding('') }} style={[s.knop, s.knopWit, s.knopHalf]}>
                         <Text style={s.knopWitT}>Annuleren</Text>
                       </Pressable>
                     </View>
-                    <Text style={s.tip}>De foorkramer logt daarna in met dit e-mailadres en het nieuwe wachtwoord.</Text>
                   </View>
                 ) : (
-                  <View style={s.loginInfo}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.loginInfoLabel}>Foorkramer-login</Text>
-                      <Text style={s.loginInfoEmail} selectable>{emails[a.id] || 'e-mail laden…'}</Text>
-                      {gelukt === a.id ? <Text style={s.okT}>✓ Nieuw wachtwoord ingesteld</Text> : null}
-                    </View>
-                    <Pressable onPress={() => { setResetVoor(a.id); setRWw(''); setRFout(''); setGelukt(null) }}
-                      style={s.knopKlein}>
-                      <Text style={s.knopKleinT}>Wachtwoord resetten</Text>
-                    </Pressable>
-                  </View>
-                )
-              ) : null}
+                  <Pressable onPress={() => { setFkVoor(a.id); setFkEmail(''); setFkMelding('') }} style={[s.knopKlein, { borderColor: C.violet, marginTop: 12 }]}>
+                    <Text style={[s.knopKleinT, { color: C.violet }]}>+ Foorkramer uitnodigen</Text>
+                  </Pressable>
+                )}
 
-              {loginVoor === a.id ? (
+                <Pressable onPress={() => ikZelf(a.id)} style={[s.knopKlein, { marginTop: 8 }]}>
+                  <Text style={s.knopKleinT}>Ik sta zelf in dit kraam</Text>
+                </Pressable>
+              </View>
+
+              {limVoor === a.id ? (
                 <View style={s.loginVak}>
-                  <Text style={s.label}>E-mail voor de foorkramer</Text>
-                  <TextInput style={s.input} value={lEmail} onChangeText={setLEmail}
-                    autoCapitalize="none" keyboardType="email-address"
-                    placeholder="kraam@funpoints.be" placeholderTextColor={C.muted} />
-                  <Text style={[s.label, { marginTop: 12 }]}>Wachtwoord</Text>
-                  <TextInput style={s.input} value={lWw} onChangeText={setLWw}
-                    secureTextEntry placeholder="minstens 6 tekens" placeholderTextColor={C.muted} />
-                  {lFout ? <View style={s.foutBox}><Text style={s.foutT}>{lFout}</Text></View> : null}
+                  <Text style={s.blokTitel}>🛡️ Dagelijkse puntenlimiet</Text>
+                  <Text style={s.tip}>Max. punten dat dit kraam per dag mag uitdelen (beveiliging tegen misbruik). Leeg = geen limiet.</Text>
+                  <TextInput style={[s.input, { marginTop: 10 }]} value={limText} onChangeText={setLimText}
+                    keyboardType="number-pad" placeholder="bv. 5000" placeholderTextColor={C.muted} />
                   <View style={s.rij}>
-                    <Pressable onPress={() => loginAanmaken(a.id)} disabled={lBezig}
-                      style={[s.knop, s.knopViolet, s.knopHalf, lBezig && s.knopUit]}>
-                      {lBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Login aanmaken</Text>}
+                    <Pressable onPress={() => zetLimiet(a.id)} style={[s.knop, s.knopViolet, s.knopHalf]}>
+                      <Text style={s.knopVioletT}>Opslaan</Text>
                     </Pressable>
-                    <Pressable onPress={() => { setLoginVoor(null); setLFout('') }} style={[s.knop, s.knopWit, s.knopHalf]}>
+                    <Pressable onPress={() => setLimVoor(null)} style={[s.knop, s.knopWit, s.knopHalf]}>
                       <Text style={s.knopWitT}>Annuleren</Text>
                     </Pressable>
                   </View>
-                  <Text style={s.tip}>Geef deze e-mail en wachtwoord door aan wie in het kraam staat.</Text>
                 </View>
               ) : (
-                <View style={s.rij}>
-                  {!a.auth_user_id ? (
-                    <Pressable onPress={() => { setLoginVoor(a.id); setLEmail(''); setLWw(''); setLFout('') }}
-                      style={[s.knopKlein, { borderColor: C.violet }]}>
-                      <Text style={[s.knopKleinT, { color: C.violet }]}>+ Login aanmaken</Text>
-                    </Pressable>
-                  ) : null}
-                  {bevestigDel === a.id ? (
-                    <Pressable onPress={() => verwijder(a.id)} style={[s.knopKlein, { borderColor: C.red }]}>
-                      <Text style={[s.knopKleinT, { color: C.red }]}>Zeker verwijderen?</Text>
-                    </Pressable>
-                  ) : (
-                    <Pressable onPress={() => setBevestigDel(a.id)} style={s.knopKlein}>
-                      <Text style={s.knopKleinT}>Verwijderen</Text>
-                    </Pressable>
-                  )}
-                </View>
+                <Pressable onPress={() => { setLimVoor(a.id); setLimText(a.max_punten_dag ? String(a.max_punten_dag) : '') }} style={s.prijsKnop}>
+                  <Text style={s.prijsKnopT}>🛡️ {a.max_punten_dag ? `Daglimiet: ${a.max_punten_dag} ptn — wijzigen` : 'Daglimiet instellen'}</Text>
+                </Pressable>
               )}
+
+              <View style={s.rij}>
+                {bevestigDel === a.id ? (
+                  <Pressable onPress={() => verwijder(a.id)} style={[s.knopKlein, { borderColor: C.red }]}>
+                    <Text style={[s.knopKleinT, { color: C.red }]}>Zeker verwijderen?</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => setBevestigDel(a.id)} style={s.knopKlein}>
+                    <Text style={s.knopKleinT}>Verwijderen</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           ))}
         <Text style={s.voet}>Een attractie verwijderen wist ook zijn puntengeschiedenis.</Text>
