@@ -139,7 +139,7 @@ grant execute on function foorkramer_intrekken(uuid) to authenticated;
 -- 5) 2FA: code verifiëren (de code zelf wordt server-side per e-mail
 --    verstuurd door een edge function die otp_hash/otp_exp zet).
 create or replace function foorkramer_2fa_verifieer(p_code text)
-  returns json language plpgsql security definer set search_path = public as $$
+  returns json language plpgsql security definer set search_path = public, extensions as $$
 declare v_f foorkramer;
 begin
   select * into v_f from foorkramer where auth_user_id = auth.uid() and status = 'actief' limit 1;

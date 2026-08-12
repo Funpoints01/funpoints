@@ -25,7 +25,7 @@ export default function Herstel() {
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
   const [gelukt, setGelukt] = useState(false)
-  const [naarFoorkramer, setNaarFoorkramer] = useState(false)
+  const [bestemming, setBestemming] = useState<'/bezoeker' | '/foorkramer' | '/uitbater'>('/bezoeker')
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -53,11 +53,12 @@ export default function Herstel() {
     setBezig(true)
     const { error } = await supabase.auth.updateUser({ password: ww })
     if (error) { setBezig(false); return setFout(t('Kon je wachtwoord niet opslaan. Vraag een nieuwe herstelmail aan.')) }
-    // Net-uitgenodigde foorkramer? Activeren en naar de scanner sturen.
+    // Rol bepalen om naar het juiste scherm te sturen.
     try {
-      const { data: act } = await supabase.rpc('foorkramer_activeer')
-      if (act && (act as { foorkramer?: boolean }).foorkramer) setNaarFoorkramer(true)
-    } catch { /* geen foorkramer — gewone wachtwoord-reset */ }
+      const { data: rol } = await supabase.rpc('mijn_rol')
+      if (rol === 'foorkramer') { await supabase.rpc('foorkramer_activeer'); setBestemming('/foorkramer') }
+      else if (rol === 'uitbater') setBestemming('/uitbater')
+    } catch { /* val terug op bezoeker */ }
     setBezig(false)
     setGelukt(true)
   }
@@ -68,10 +69,11 @@ export default function Herstel() {
         <View style={s.kaart}>
           <Text style={{ fontSize: 52, marginBottom: 8 }}>✅</Text>
           <Text style={s.titel}>{t('Je wachtwoord is aangepast')}</Text>
-          <Text style={s.sub}>{naarFoorkramer
-            ? t('Je foorkramer-account is klaar. Log in om punten te scannen.')
+          <Text style={s.sub}>{
+            bestemming === '/foorkramer' ? t('Je foorkramer-account is klaar. Log in om punten te scannen.')
+            : bestemming === '/uitbater' ? t('Je uitbater-account is klaar. Log in om je kramen te beheren.')
             : t('Je kan nu inloggen met je nieuwe wachtwoord.')}</Text>
-          <Pressable onPress={() => router.replace(naarFoorkramer ? '/foorkramer' : '/bezoeker')} style={[s.knop, s.knopCoral]}>
+          <Pressable onPress={() => router.replace(bestemming)} style={[s.knop, s.knopCoral]}>
             <Text style={s.knopCoralT}>{t('Naar inloggen')}</Text>
           </Pressable>
         </View>

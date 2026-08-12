@@ -378,7 +378,7 @@ function Uitbaters() {
   const [laden, setLaden] = useState(true)
   const [credit, setCredit] = useState<Record<string, string>>({})
   const [maxIn, setMaxIn] = useState<Record<string, string>>({})
-  const [nieuw, setNieuw] = useState<{ naam: string; email: string; ww: string; pakket: 'start' | 'volledig' }>({ naam: '', email: '', ww: '', pakket: 'volledig' })
+  const [nieuw, setNieuw] = useState<{ naam: string; email: string; pakket: 'start' | 'volledig' }>({ naam: '', email: '', pakket: 'volledig' })
   const [maakBezig, setMaakBezig] = useState(false)
   const [maakMelding, setMaakMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   useEffect(() => { herlaad() }, [])
@@ -386,18 +386,20 @@ function Uitbaters() {
 
   async function maakAccount() {
     setMaakMelding(null)
-    if (!nieuw.naam.trim() || !nieuw.email.trim() || nieuw.ww.length < 8) {
-      setMaakMelding({ ok: false, tekst: 'Vul naam, e-mail en een wachtwoord van minstens 8 tekens in.' }); return
+    if (!nieuw.naam.trim() || !nieuw.email.trim()) {
+      setMaakMelding({ ok: false, tekst: 'Vul naam en e-mail in.' }); return
     }
     setMaakBezig(true)
     const { data, error } = await supabase.functions.invoke('mgmt-maak-uitbater', {
-      body: { naam: nieuw.naam.trim(), email: nieuw.email.trim(), wachtwoord: nieuw.ww, pakket: nieuw.pakket },
+      body: { naam: nieuw.naam.trim(), email: nieuw.email.trim(), pakket: nieuw.pakket },
     })
     setMaakBezig(false)
     const fout = (error as any)?.message || (data as any)?.error
-    if (fout) { setMaakMelding({ ok: false, tekst: 'Aanmaken mislukt: ' + fout }); return }
-    setMaakMelding({ ok: true, tekst: 'Account voor ' + nieuw.email.trim() + ' aangemaakt (' + nieuw.pakket + ').' })
-    setNieuw({ naam: '', email: '', ww: '', pakket: 'volledig' })
+    if (fout) {
+      setMaakMelding({ ok: false, tekst: String(fout).includes('MAIL_BESTAAT_AL') ? 'Dit e-mailadres heeft al een account.' : 'Uitnodigen mislukt: ' + fout }); return
+    }
+    setMaakMelding({ ok: true, tekst: 'Uitnodiging verstuurd naar ' + nieuw.email.trim() + ' (' + nieuw.pakket + ').' })
+    setNieuw({ naam: '', email: '', pakket: 'volledig' })
     herlaad()
   }
 
@@ -430,15 +432,13 @@ function Uitbaters() {
       <View style={[s.blok, { marginTop: 6 }]}>
         <Text style={s.attrNaam}>Nieuw uitbater-account</Text>
         <Text style={[s.blokSub, { marginTop: 4, marginBottom: 10 }]}>
-          Maak hier meteen een account aan. De uitbater kan direct inloggen met dit e-mailadres en wachtwoord.
+          Vul naam, e-mail en pakket in. De uitbater krijgt een uitnodiging per e-mail en kiest zelf zijn wachtwoord.
         </Text>
         <TextInput style={[s.credInput, { width: '100%', marginBottom: 8 }]} value={nieuw.naam}
           onChangeText={(t) => setNieuw((n) => ({ ...n, naam: t }))} placeholder="Naam / zaak" placeholderTextColor={C.muted} />
         <TextInput style={[s.credInput, { width: '100%', marginBottom: 8 }]} value={nieuw.email}
           onChangeText={(t) => setNieuw((n) => ({ ...n, email: t }))} autoCapitalize="none" keyboardType="email-address"
           placeholder="E-mail" placeholderTextColor={C.muted} />
-        <TextInput style={[s.credInput, { width: '100%', marginBottom: 10 }]} value={nieuw.ww}
-          onChangeText={(t) => setNieuw((n) => ({ ...n, ww: t }))} placeholder="Wachtwoord (min. 8 tekens)" placeholderTextColor={C.muted} />
         <View style={s.statusRij}>
           {PAKKET_OPTS.map((o) => (
             <Pressable key={o.key} onPress={() => setNieuw((n) => ({ ...n, pakket: o.key }))}
@@ -451,7 +451,7 @@ function Uitbaters() {
           <Text style={{ marginTop: 10, fontSize: 13, fontWeight: '600', color: maakMelding.ok ? C.green : '#E11D48' }}>{maakMelding.tekst}</Text>
         ) : null}
         <Pressable onPress={maakAccount} disabled={maakBezig} style={[s.credKnop, { marginTop: 12, alignItems: 'center', opacity: maakBezig ? 0.6 : 1 }]}>
-          <Text style={s.credKnopT}>{maakBezig ? 'Bezig…' : '+ Account aanmaken'}</Text>
+          <Text style={s.credKnopT}>{maakBezig ? 'Bezig…' : '+ Uitnodiging sturen'}</Text>
         </Pressable>
       </View>
 
