@@ -20,6 +20,7 @@ export default function Attracties() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [uitbaterId, setUitbaterId] = useState<string | null>(null)
+  const [pakket, setPakket] = useState<string>('volledig')
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [laden, setLaden] = useState(true)
 
@@ -73,8 +74,9 @@ export default function Attracties() {
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setSession(data.session)) }, [])
 
   async function herlaad() {
-    const { data: u } = await supabase.from('uitbater').select('id').eq('auth_user_id', session!.user.id).maybeSingle()
+    const { data: u } = await supabase.from('uitbater').select('id, pakket').eq('auth_user_id', session!.user.id).maybeSingle()
     setUitbaterId(u?.id ?? null)
+    setPakket(((u as any)?.pakket as string) ?? 'volledig')
     const { data: att } = await supabase.from('attractie').select('id, naam, soort, auth_user_id, hoofdprijs_naam, hoofdprijs_punten, snelknoppen').order('naam')
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
@@ -96,7 +98,9 @@ export default function Attracties() {
     setBezig(true)
     const { error } = await supabase.from('attractie').insert({ uitbater_id: uitbaterId, naam: naam.trim(), soort })
     setBezig(false)
-    if (error) return setFout('Toevoegen mislukt. Probeer opnieuw.')
+    if (error) return setFout((error as any).message?.includes('ATTRACTIE_LIMIET')
+      ? ((error as any).hint || 'Je hebt het maximum aantal attracties voor je pakket bereikt. Contacteer ons voor een extra attractie.')
+      : 'Toevoegen mislukt. Probeer opnieuw.')
     setNaam(''); setSoort('ander'); herlaad()
   }
 
@@ -187,7 +191,7 @@ export default function Attracties() {
                   : <Text style={s.badgeGeen}>geen login</Text>}
               </View>
 
-              {prijsVoor === a.id ? (
+              {pakket === 'volledig' ? (prijsVoor === a.id ? (
                 <View style={s.loginVak}>
                   <Text style={s.blokTitel}>🎁 Hoofdprijs</Text>
                   <Text style={[s.label, { marginTop: 12 }]}>Naam van de prijs</Text>
@@ -216,9 +220,9 @@ export default function Attracties() {
                       : 'Hoofdprijs instellen'}
                   </Text>
                 </Pressable>
-              )}
+              )) : null}
 
-              {snelVoor === a.id ? (
+              {pakket === 'volledig' ? (snelVoor === a.id ? (
                 <View style={s.loginVak}>
                   <Text style={s.blokTitel}>⚡ Snelknoppen</Text>
                   <Text style={s.tip}>Bedragen die de kraamhouder met één tik boekt. Komma-gescheiden.</Text>
@@ -243,7 +247,7 @@ export default function Attracties() {
                       : 'Snelknoppen instellen'}
                   </Text>
                 </Pressable>
-              )}
+              )) : null}
 
               {a.auth_user_id ? (
                 resetVoor === a.id ? (

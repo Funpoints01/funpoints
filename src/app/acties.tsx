@@ -92,6 +92,7 @@ export default function Acties() {
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [acties, setActies] = useState<Actie[]>([])
   const [credits, setCredits] = useState(0)
+  const [pakket, setPakket] = useState('volledig')
   const [laden, setLaden] = useState(true)
 
   const [attrId, setAttrId] = useState('')
@@ -221,10 +222,11 @@ export default function Acties() {
     const uid = session?.user?.id
     if (!uid) return
     const [{ data: u }, { data: att }] = await Promise.all([
-      supabase.from('uitbater').select('credits').eq('auth_user_id', uid).maybeSingle(),
+      supabase.from('uitbater').select('credits, pakket').eq('auth_user_id', uid).maybeSingle(),
       supabase.from('attractie').select('id, naam'),
     ])
     setCredits(u?.credits ?? 0)
+    setPakket(((u as any)?.pakket as string) ?? 'volledig')
     const lijst = (att ?? []) as Attr[]
     setAttracties(lijst)
     if (lijst.length && !attrId) setAttrId(lijst[0].id)
@@ -372,7 +374,7 @@ export default function Acties() {
             <>
               <Text style={[s.label, { marginTop: 14 }]}>Soort</Text>
               <View style={s.chips}>
-                {SOORTEN.map((so) => (
+                {SOORTEN.filter((so) => pakket === 'volledig' || so.key !== 'bonus_punten').map((so) => (
                   <Pressable key={so.key} onPress={() => setSoort(so.key)} style={[s.chip, soort === so.key && s.chipActief]}>
                     <Text style={[s.chipT, soort === so.key && s.chipTActief]}>{so.label}</Text>
                   </Pressable>
