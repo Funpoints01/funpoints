@@ -25,6 +25,7 @@ export default function Herstel() {
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
   const [gelukt, setGelukt] = useState(false)
+  const [naarFoorkramer, setNaarFoorkramer] = useState(false)
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -51,8 +52,13 @@ export default function Herstel() {
     if (ww !== ww2) return setFout(t('De twee wachtwoorden komen niet overeen.'))
     setBezig(true)
     const { error } = await supabase.auth.updateUser({ password: ww })
+    if (error) { setBezig(false); return setFout(t('Kon je wachtwoord niet opslaan. Vraag een nieuwe herstelmail aan.')) }
+    // Net-uitgenodigde foorkramer? Activeren en naar de scanner sturen.
+    try {
+      const { data: act } = await supabase.rpc('foorkramer_activeer')
+      if (act && (act as { foorkramer?: boolean }).foorkramer) setNaarFoorkramer(true)
+    } catch { /* geen foorkramer — gewone wachtwoord-reset */ }
     setBezig(false)
-    if (error) return setFout(t('Kon je wachtwoord niet opslaan. Vraag een nieuwe herstelmail aan.'))
     setGelukt(true)
   }
 
@@ -62,8 +68,10 @@ export default function Herstel() {
         <View style={s.kaart}>
           <Text style={{ fontSize: 52, marginBottom: 8 }}>✅</Text>
           <Text style={s.titel}>{t('Je wachtwoord is aangepast')}</Text>
-          <Text style={s.sub}>{t('Je kan nu inloggen met je nieuwe wachtwoord.')}</Text>
-          <Pressable onPress={() => router.replace('/bezoeker')} style={[s.knop, s.knopCoral]}>
+          <Text style={s.sub}>{naarFoorkramer
+            ? t('Je foorkramer-account is klaar. Log in om punten te scannen.')
+            : t('Je kan nu inloggen met je nieuwe wachtwoord.')}</Text>
+          <Pressable onPress={() => router.replace(naarFoorkramer ? '/foorkramer' : '/bezoeker')} style={[s.knop, s.knopCoral]}>
             <Text style={s.knopCoralT}>{t('Naar inloggen')}</Text>
           </Pressable>
         </View>
