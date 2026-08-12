@@ -96,6 +96,7 @@ export default function Acties() {
   const [addUitlichten, setAddUitlichten] = useState(false)
   const [addSuperster, setAddSuperster] = useState(false)
   const [addPush, setAddPush] = useState(false)
+  const [maxBereik, setMaxBereik] = useState('')
   const [pakket, setPakket] = useState('volledig')
   const [laden, setLaden] = useState(true)
 
@@ -290,6 +291,7 @@ export default function Acties() {
       p_van: vi, p_tot: ti, p_eenmalig: eenmalig,
       p_doel_provincies: doelProv, p_doel_segment: segment,
       p_uitlichten: addUitlichten, p_superster: addSuperster, p_push: addPush,
+      p_max_bereik: maxBereik.trim() ? parseInt(maxBereik, 10) : null,
     })
     setBezig(false)
     if (error) return setFout(error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.' : 'Indienen mislukt. Probeer opnieuw.')
@@ -299,7 +301,7 @@ export default function Acties() {
     setOkMelding('Actie ingediend ter goedkeuring. ' + kost + ' credits gereserveerd (terugbetaald bij afkeuring).')
     setTitel(''); setBeschrijving(''); setPct(''); setBonusVast(''); setBonusModus('procent'); setAutomatisch(true); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
     setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
-    setAddUitlichten(false); setAddSuperster(false); setAddPush(false)
+    setAddUitlichten(false); setAddSuperster(false); setAddPush(false); setMaxBereik('')
     herlaad()
   }
 
@@ -490,10 +492,19 @@ export default function Acties() {
               <Text style={[s.chipT, addPush && s.chipTActief]}>Pushmelding +5/p</Text>
             </Pressable>
           </View>
+          <Text style={[s.label, { marginTop: 14 }]}>Max aantal personen (optioneel)</Text>
+          <TextInput style={s.input} value={maxBereik}
+            onChangeText={(t) => setMaxBereik(t.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad" placeholder="leeg = hele doelgroep" placeholderTextColor={C.muted} />
           <Text style={s.campProv}>
             {doelTel === null
               ? 'Basis 1 credit per persoon; add-ons komen erbovenop.'
-              : `Kost: ${doelTel} × ${1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0)} = ${doelTel * (1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0))} credits (gereserveerd tot goedkeuring). Je saldo: ${credits}.`}
+              : (() => {
+                  const perp = 1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0)
+                  const cap = maxBereik.trim() ? parseInt(maxBereik, 10) : 0
+                  const eff = cap > 0 && cap < doelTel ? cap : doelTel
+                  return `Kost: ${eff} × ${perp} = ${eff * perp} credits (gereserveerd tot goedkeuring). Je saldo: ${credits}.`
+                })()}
           </Text>
 
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}

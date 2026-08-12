@@ -390,7 +390,12 @@ function Uitbaters() {
     const { data: tv } = await supabase.rpc('mgmt_acties_tevalideren'); setTeVal(tv ?? [])
     setLaden(false)
   }
-  async function keurGoed(id: string) { await supabase.rpc('mgmt_actie_goedkeuren', { p_id: id }); herlaad() }
+  async function keurGoed(id: string) {
+    const { data } = await supabase.rpc('mgmt_actie_goedkeuren', { p_id: id })
+    const camp = (data as { campagne_id?: string } | null)?.campagne_id
+    if (camp) await supabase.functions.invoke('verstuur-push', { body: { campagne_id: camp } })
+    herlaad()
+  }
   async function keurAf(id: string) {
     if (!afkeurReden.trim()) return
     await supabase.rpc('mgmt_actie_afkeuren', { p_id: id, p_reden: afkeurReden.trim() })
