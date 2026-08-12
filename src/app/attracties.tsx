@@ -148,6 +148,14 @@ export default function Attracties() {
     const { error } = await supabase.rpc('foorkramer_ikzelf', { p_attractie_id: attractieId })
     if (!error) laadFoorkramers(attractieId)
   }
+  async function pauzeer(fkId: string, attractieId: string) {
+    await supabase.rpc('foorkramer_pauzeren', { p_id: fkId })
+    laadFoorkramers(attractieId)
+  }
+  async function hervat(fkId: string, attractieId: string) {
+    await supabase.rpc('foorkramer_hervatten', { p_id: fkId })
+    laadFoorkramers(attractieId)
+  }
   async function zetLimiet(attractieId: string) {
     const n = limText.trim() ? parseInt(limText, 10) : null
     await supabase.rpc('attractie_zet_daglimiet', { p_attractie_id: attractieId, p_limiet: (n && n > 0) ? n : null })
@@ -304,12 +312,20 @@ export default function Attracties() {
                       <Text style={s.loginInfoEmail} selectable>{f.email}</Text>
                       <Text style={s.tip}>
                         {f.status === 'uitgenodigd' ? '✉️ uitgenodigd — wacht op wachtwoord'
+                          : f.status === 'gepauzeerd' ? '⏸️ gepauzeerd'
                           : f.geverifieerd ? '🟢 actief (ingelogd)' : '✓ actief'}
                       </Text>
                     </View>
-                    <Pressable onPress={() => trekIn(f.id, a.id)} style={[s.knopKlein, { borderColor: C.red }]}>
-                      <Text style={[s.knopKleinT, { color: C.red }]}>Intrekken</Text>
-                    </Pressable>
+                    <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                      {f.status !== 'uitgenodigd' ? (
+                        <Pressable onPress={() => (f.status === 'gepauzeerd' ? hervat(f.id, a.id) : pauzeer(f.id, a.id))} style={s.knopKlein}>
+                          <Text style={s.knopKleinT}>{f.status === 'gepauzeerd' ? 'Hervatten' : 'Pauzeren'}</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable onPress={() => trekIn(f.id, a.id)} style={[s.knopKlein, { borderColor: C.red }]}>
+                        <Text style={[s.knopKleinT, { color: C.red }]}>Intrekken</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 ))}
 
