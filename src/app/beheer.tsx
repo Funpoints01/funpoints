@@ -41,6 +41,11 @@ const STATUS_OPTS = [
   { key: 'actief', label: 'Actief', kleur: '#10B981' },
 ] as const
 
+const PAKKET_OPTS = [
+  { key: 'start', label: 'Start', kleur: '#8B5CF6' },
+  { key: 'volledig', label: 'Volledig', kleur: '#10B981' },
+] as const
+
 export default function Beheer() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [manager, setManager] = useState<boolean | null>(null)
@@ -372,12 +377,44 @@ function Uitbaters() {
   const [lijst, setLijst] = useState<any[]>([])
   const [laden, setLaden] = useState(true)
   const [credit, setCredit] = useState<Record<string, string>>({})
+  const [maxIn, setMaxIn] = useState<Record<string, string>>({})
+  const [nieuw, setNieuw] = useState<{ naam: string; email: string; ww: string; pakket: 'start' | 'volledig' }>({ naam: '', email: '', ww: '', pakket: 'volledig' })
+  const [maakBezig, setMaakBezig] = useState(false)
+  const [maakMelding, setMaakMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   useEffect(() => { herlaad() }, [])
   async function herlaad() { const { data } = await supabase.rpc('mgmt_uitbaters'); setLijst(data ?? []); setLaden(false) }
 
+  async function maakAccount() {
+    setMaakMelding(null)
+    if (!nieuw.naam.trim() || !nieuw.email.trim() || nieuw.ww.length < 8) {
+      setMaakMelding({ ok: false, tekst: 'Vul naam, e-mail en een wachtwoord van minstens 8 tekens in.' }); return
+    }
+    setMaakBezig(true)
+    const { data, error } = await supabase.functions.invoke('mgmt-maak-uitbater', {
+      body: { naam: nieuw.naam.trim(), email: nieuw.email.trim(), wachtwoord: nieuw.ww, pakket: nieuw.pakket },
+    })
+    setMaakBezig(false)
+    const fout = (error as any)?.message || (data as any)?.error
+    if (fout) { setMaakMelding({ ok: false, tekst: 'Aanmaken mislukt: ' + fout }); return }
+    setMaakMelding({ ok: true, tekst: 'Account voor ' + nieuw.email.trim() + ' aangemaakt (' + nieuw.pakket + ').' })
+    setNieuw({ naam: '', email: '', ww: '', pakket: 'volledig' })
+    herlaad()
+  }
+
   async function zetStatus(id: string, status: string) {
-    setLijst((l) => l.map((u) => u.id === id ? { ...u, status, mrr: status === 'actief' && Number(u.kramen) > 0 ? 99 + 50 * (Number(u.kramen) - 1) : 0 } : u))
     await supabase.rpc('mgmt_uitbater_status', { p_id: id, p_status: status })
+    herlaad()
+  }
+  async function zetPakket(id: string, pakket: string) {
+    await supabase.rpc('mgmt_uitbater_pakket', { p_id: id, p_pakket: pakket, p_max: null })
+    herlaad()
+  }
+  async function zetMax(id: string, pakket: string) {
+    const n = parseInt(maxIn[id] ?? '', 10)
+    if (!n || n < 1) return
+    setMaxIn((m) => ({ ...m, [id]: '' }))
+    await supabase.rpc('mgmt_uitbater_pakket', { p_id: id, p_pakket: pakket, p_max: n })
+    herlaad()
   }
   async function kenToe(id: string) {
     const n = parseInt(credit[id] ?? '', 10)
@@ -391,8 +428,36 @@ function Uitbaters() {
   return (
     <View style={{ marginTop: 4, gap: 10 }}>
       <View style={[s.blok, { marginTop: 6 }]}>
+        <Text style={s.attrNaam}>Nieuw uitbater-account</Text>
+        <Text style={[s.blokSub, { marginTop: 4, marginBottom: 10 }]}>
+          Maak hier meteen een account aan. De uitbater kan direct inloggen met dit e-mailadres en wachtwoord.
+        </Text>
+        <TextInput style={[s.credInput, { width: '100%', marginBottom: 8 }]} value={nieuw.naam}
+          onChangeText={(t) => setNieuw((n) => ({ ...n, naam: t }))} placeholder="Naam / zaak" placeholderTextColor={C.muted} />
+        <TextInput style={[s.credInput, { width: '100%', marginBottom: 8 }]} value={nieuw.email}
+          onChangeText={(t) => setNieuw((n) => ({ ...n, email: t }))} autoCapitalize="none" keyboardType="email-address"
+          placeholder="E-mail" placeholderTextColor={C.muted} />
+        <TextInput style={[s.credInput, { width: '100%', marginBottom: 10 }]} value={nieuw.ww}
+          onChangeText={(t) => setNieuw((n) => ({ ...n, ww: t }))} placeholder="Wachtwoord (min. 8 tekens)" placeholderTextColor={C.muted} />
+        <View style={s.statusRij}>
+          {PAKKET_OPTS.map((o) => (
+            <Pressable key={o.key} onPress={() => setNieuw((n) => ({ ...n, pakket: o.key }))}
+              style={[s.statusChip, nieuw.pakket === o.key && { backgroundColor: o.kleur, borderColor: o.kleur }]}>
+              <Text style={[s.statusChipT, nieuw.pakket === o.key && { color: '#fff' }]}>{o.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {maakMelding ? (
+          <Text style={{ marginTop: 10, fontSize: 13, fontWeight: '600', color: maakMelding.ok ? C.green : '#E11D48' }}>{maakMelding.tekst}</Text>
+        ) : null}
+        <Pressable onPress={maakAccount} disabled={maakBezig} style={[s.credKnop, { marginTop: 12, alignItems: 'center', opacity: maakBezig ? 0.6 : 1 }]}>
+          <Text style={s.credKnopT}>{maakBezig ? 'Bezig…' : '+ Account aanmaken'}</Text>
+        </Pressable>
+      </View>
+
+      <View style={[s.blok, { marginTop: 6 }]}>
         <Text style={s.blokSub}>
-          Zet elke uitbater op fictief, proef of actief. Enkel actieve uitbaters tellen mee voor de MRR.
+          Zet elke uitbater op fictief, proef of actief en kies het pakket. Enkel actieve uitbaters tellen mee voor de MRR.
           Credits kan je hier handmatig toekennen tot de betaalflow live staat.
         </Text>
       </View>
@@ -402,7 +467,7 @@ function Uitbaters() {
             <View style={s.uTop}>
               <View style={{ flex: 1 }}>
                 <Text style={s.attrNaam}>{u.naam ?? 'Naamloos'}</Text>
-                <Text style={s.attrSub}>{u.email ?? '—'} · {u.kramen} kraam(en)</Text>
+                <Text style={s.attrSub}>{u.email ?? '—'} · {u.kramen}/{u.max_attracties} kraam(en) · {u.pakket === 'volledig' ? 'Volledig' : 'Start'}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[s.attrPunten, { color: u.status === 'actief' ? C.green : C.muted }]}>{euro(u.mrr)}</Text>
@@ -417,6 +482,23 @@ function Uitbaters() {
                   <Text style={[s.statusChipT, u.status === o.key && { color: '#fff' }]}>{o.label}</Text>
                 </Pressable>
               ))}
+            </View>
+
+            <View style={[s.statusRij, { marginTop: 8 }]}>
+              {PAKKET_OPTS.map((o) => (
+                <Pressable key={o.key} onPress={() => zetPakket(u.id, o.key)}
+                  style={[s.statusChip, u.pakket === o.key && { backgroundColor: o.kleur, borderColor: o.kleur }]}>
+                  <Text style={[s.statusChipT, u.pakket === o.key && { color: '#fff' }]}>{o.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={s.credRij}>
+              <Text style={s.credSaldo}>max {u.max_attracties} attr.</Text>
+              <TextInput style={s.credInput} value={maxIn[u.id] ?? ''}
+                onChangeText={(t) => setMaxIn((m) => ({ ...m, [u.id]: t.replace(/[^0-9]/g, '') }))}
+                keyboardType="number-pad" placeholder="nieuw max" placeholderTextColor={C.muted} />
+              <Pressable onPress={() => zetMax(u.id, u.pakket)} style={s.credKnop}><Text style={s.credKnopT}>Zet</Text></Pressable>
             </View>
 
             <View style={s.credRij}>
