@@ -37,6 +37,8 @@ function isGeboost(ts: string | null): boolean { return !!ts && new Date(ts).get
 function isSuperster(ts: string | null): boolean { return !!ts && new Date(ts).getTime() > Date.now() }
 const SS_UREN = [4, 8, 12]
 const RADII = [5, 10, 20, 35, 50, 75, 100]
+const PROMO = { uitlichten: { label: '⭐ Uitlichten', tarief: 2 }, superster: { label: '🌟 Superster', tarief: 3 }, push: { label: '📣 Pushmelding', tarief: 5 } } as const
+type PromoType = keyof typeof PROMO
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 // --- Regio-targeting (interim: provincie-niveau) ---
@@ -121,6 +123,14 @@ export default function Acties() {
   const [segment, setSegment] = useState('iedereen')
   const [regioNiveau, setRegioNiveau] = useState(3)
   const [regioPc, setRegioPc] = useState('')
+  const [radius, setRadius] = useState(20)
+  const [promoVoor, setPromoVoor] = useState<{ id: string; type: PromoType } | null>(null)
+  const [promoPc, setPromoPc] = useState('')
+  const [promoRadius, setPromoRadius] = useState(20)
+  const [promoMax, setPromoMax] = useState('')
+  const [promoBereik, setPromoBereik] = useState<number | null>(null)
+  const [promoBezig, setPromoBezig] = useState(false)
+  const [promoFout, setPromoFout] = useState('')
   const [bezig, setBezig] = useState(false)
   const [fout, setFout] = useState('')
 
@@ -252,17 +262,12 @@ export default function Acties() {
   // Live tellen hoeveel bezoekers deze actie zullen zien (regio + segment).
   useEffect(() => {
     if (!attrId) { setDoelTel(null); return }
-    let prov: string[] | null = null
-    if (regioNiveau < 3) {
-      if (!/^\d{4}$/.test(regioPc.trim())) { setDoelTel(null); return }
-      prov = provinciesVoor(regioPc.trim(), regioNiveau)
-      if (!prov) { setDoelTel(null); return }
-    }
+    if (!/^\d{4}$/.test(regioPc.trim())) { setDoelTel(null); return }
     let afgebroken = false
-    supabase.rpc('tel_actie_doelgroep', { p_provincies: prov, p_segment: segment, p_attractie_id: attrId })
+    supabase.rpc('tel_bereik_km', { p_postcode: regioPc.trim(), p_radius: radius, p_segment: segment, p_attractie_id: attrId })
       .then(({ data }) => { if (!afgebroken) setDoelTel(typeof data === 'number' ? data : Number(data) || 0) })
     return () => { afgebroken = true }
-  }, [attrId, segment, regioNiveau, regioPc])
+  }, [attrId, segment, radius, regioPc])
 
   async function toevoegen() {
     setFout('')
@@ -277,21 +282,14 @@ export default function Acties() {
       if (bonusModus === 'procent' && (!pctNum || pctNum <= 0)) return setFout('Geef een percentage extra punten.')
       if (bonusModus === 'vast' && (!vastNum || vastNum <= 0)) return setFout('Geef een vast aantal extra punten.')
     }
-    let doelProv: string[] | null = null
-    if (regioNiveau < 3) {
-      if (!/^\d{4}$/.test(regioPc.trim())) return setFout('Geef een geldige postcode voor de regio, of kies “Heel België”.')
-      doelProv = provinciesVoor(regioPc.trim(), regioNiveau)
-      if (!doelProv) return setFout('Kon de regio niet bepalen — controleer de postcode.')
-    }
+    if (!/^\d{4}$/.test(regioPc.trim())) return setFout('Geef een geldige postcode als middelpunt van je regio.')
     setBezig(true); setOkMelding('')
     const { data, error } = await supabase.rpc('actie_indienen', {
       p_attractie_id: attrId, p_titel: titel.trim(), p_beschrijving: beschrijving.trim() || null,
       p_soort: eenmalig ? 'voucher' : soort, p_bonus_pct: pctNum, p_bonus_vast: vastNum,
       p_bonus_modus: bonusModus, p_automatisch: !eenmalig && soort === 'bonus_punten' ? automatisch : false,
       p_van: vi, p_tot: ti, p_eenmalig: eenmalig,
-      p_doel_provincies: doelProv, p_doel_segment: segment,
-      p_uitlichten: addUitlichten, p_superster: addSuperster, p_push: addPush,
-      p_max_bereik: maxBereik.trim() ? parseInt(maxBereik, 10) : null,
+      p_center_postcode: regioPc.trim(), p_radius: radius, p_segment: segment,
     })
     setBezig(false)
     if (error) return setFout(error.message.includes('ONVOLDOENDE_CREDITS') ? 'Niet genoeg credits voor dit bereik.' : 'Indienen mislukt. Probeer opnieuw.')
@@ -300,14 +298,47 @@ export default function Acties() {
     if (typeof nieuwSaldo === 'number') setCredits(nieuwSaldo)
     setOkMelding('Actie ingediend ter goedkeuring. ' + kost + ' credits gereserveerd (terugbetaald bij afkeuring).')
     setTitel(''); setBeschrijving(''); setPct(''); setBonusVast(''); setBonusModus('procent'); setAutomatisch(true); setVan(''); setTot(''); setSoort('promo'); setEenmalig(false)
-    setSegment('iedereen'); setRegioNiveau(3); setRegioPc('')
-    setAddUitlichten(false); setAddSuperster(false); setAddPush(false); setMaxBereik('')
+    setSegment('iedereen'); setRegioPc(''); setRadius(20)
     herlaad()
   }
 
   async function verwijder(id: string) {
     await supabase.from('actie').delete().eq('id', id)
     setActies((a) => a.filter((x) => x.id !== id))
+  }
+
+  useEffect(() => {
+    if (!promoVoor || !/^\d{4}$/.test(promoPc.trim())) { setPromoBereik(null); return }
+    const act = acties.find((x) => x.id === promoVoor.id)
+    if (!act) { setPromoBereik(null); return }
+    let afg = false
+    supabase.rpc('tel_bereik_km', { p_postcode: promoPc.trim(), p_radius: promoRadius, p_segment: 'iedereen', p_attractie_id: act.attractie_id })
+      .then(({ data }) => { if (!afg) setPromoBereik(typeof data === 'number' ? data : Number(data) || 0) })
+    return () => { afg = true }
+  }, [promoVoor, promoPc, promoRadius, acties])
+
+  function openPromo(id: string, type: PromoType) {
+    setPromoVoor({ id, type }); setPromoPc(''); setPromoMax(''); setPromoRadius(20); setPromoFout(''); setPromoBereik(null)
+  }
+  async function doePromo() {
+    if (!promoVoor) return
+    setPromoFout('')
+    if (!/^\d{4}$/.test(promoPc.trim())) { setPromoFout('Geef een geldige postcode.'); return }
+    setPromoBezig(true)
+    const fn = promoVoor.type === 'uitlichten' ? 'actie_uitlichten' : promoVoor.type === 'superster' ? 'actie_superster' : 'actie_push'
+    const { data, error } = await supabase.rpc(fn, {
+      p_actie_id: promoVoor.id, p_postcode: promoPc.trim(), p_radius: promoRadius,
+      p_max: promoMax.trim() ? parseInt(promoMax, 10) : null,
+    })
+    if (error) { setPromoBezig(false); setPromoFout(error.message.includes('ONVOLDOENDE') ? 'Niet genoeg credits.' : 'Activeren mislukt.'); return }
+    const d = data as { credits?: number; campagne_id?: string; kost?: number } | null
+    if (promoVoor.type === 'push' && d?.campagne_id) {
+      await supabase.functions.invoke('verstuur-push', { body: { campagne_id: d.campagne_id } })
+    }
+    if (typeof d?.credits === 'number') setCredits(d.credits)
+    setPromoBezig(false); setPromoVoor(null)
+    setOkMelding('Promotie geactiveerd — ' + (d?.kost ?? 0) + ' credits afgeboekt.')
+    herlaad()
   }
 
   async function boost(actieId: string, dagen: number) {
@@ -454,57 +485,26 @@ export default function Acties() {
             ))}
           </View>
 
-          <Text style={[s.label, { marginTop: 14 }]}>Regio</Text>
-          <View style={s.chips}>
-            {NIVEAUS.map((nv, i) => (
-              <Pressable key={nv} onPress={() => setRegioNiveau(i)} style={[s.chip, regioNiveau === i && s.chipActief]}>
-                <Text style={[s.chipT, regioNiveau === i && s.chipTActief]}>{nv}</Text>
+          <Text style={[s.label, { marginTop: 14 }]}>Regio — middelpunt (postcode)</Text>
+          <TextInput style={[s.input, { marginTop: 4 }]} value={regioPc} onChangeText={setRegioPc}
+            keyboardType="number-pad" maxLength={4} placeholder="bv. 9300" placeholderTextColor={C.muted} />
+          <Text style={[s.label, { marginTop: 14 }]}>Straal</Text>
+          <View style={s.kmRij}>
+            {RADII.map((r) => (
+              <Pressable key={r} onPress={() => setRadius(r)} style={[s.kmChip, radius === r && s.kmChipAan]}>
+                <Text style={[s.kmChipT, radius === r && s.kmChipTAan]}>{r} km</Text>
               </Pressable>
             ))}
           </View>
-          {regioNiveau < 3 ? (
-            <>
-              <TextInput style={[s.input, { marginTop: 10 }]} value={regioPc} onChangeText={setRegioPc}
-                keyboardType="number-pad" maxLength={4} placeholder="postcode als middelpunt, bv. 8500" placeholderTextColor={C.muted} />
-              {provVan(regioPc) ? (
-                <Text style={s.campProv}>{(provinciesVoor(regioPc, regioNiveau) ?? []).map((pp) => PROV[pp]).join(', ')}</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={s.campProv}>Iedereen in België ziet deze actie.</Text>
-          )}
 
           <View style={s.tellerVak}>
             {doelTel === null
-              ? <Text style={s.tellerLeeg}>Kies attractie, regio en segment om je doelgroep te zien.</Text>
-              : <Text style={s.tellerT}><Text style={s.tellerGetal}>≈ {doelTel}</Text> bezoeker(s) worden met deze actie getarget</Text>}
+              ? <Text style={s.tellerLeeg}>Kies attractie, postcode en straal om je doelgroep te zien.</Text>
+              : <Text style={s.tellerT}><Text style={s.tellerGetal}>≈ {doelTel}</Text> bezoeker(s) binnen {radius} km</Text>}
           </View>
-
-          <Text style={[s.label, { marginTop: 16 }]}>Extra zichtbaarheid (optioneel)</Text>
-          <View style={s.chips}>
-            <Pressable onPress={() => setAddUitlichten((v) => !v)} style={[s.chip, addUitlichten && s.chipActief]}>
-              <Text style={[s.chipT, addUitlichten && s.chipTActief]}>Uitlichten +2/p</Text>
-            </Pressable>
-            <Pressable onPress={() => setAddSuperster((v) => !v)} style={[s.chip, addSuperster && s.chipActief]}>
-              <Text style={[s.chipT, addSuperster && s.chipTActief]}>Superster +3/p</Text>
-            </Pressable>
-            <Pressable onPress={() => setAddPush((v) => !v)} style={[s.chip, addPush && s.chipActief]}>
-              <Text style={[s.chipT, addPush && s.chipTActief]}>Pushmelding +5/p</Text>
-            </Pressable>
-          </View>
-          <Text style={[s.label, { marginTop: 14 }]}>Max aantal personen (optioneel)</Text>
-          <TextInput style={s.input} value={maxBereik}
-            onChangeText={(t) => setMaxBereik(t.replace(/[^0-9]/g, ''))}
-            keyboardType="number-pad" placeholder="leeg = hele doelgroep" placeholderTextColor={C.muted} />
           <Text style={s.campProv}>
-            {doelTel === null
-              ? 'Basis 1 credit per persoon; add-ons komen erbovenop.'
-              : (() => {
-                  const perp = 1 + (addUitlichten ? 2 : 0) + (addSuperster ? 3 : 0) + (addPush ? 5 : 0)
-                  const cap = maxBereik.trim() ? parseInt(maxBereik, 10) : 0
-                  const eff = cap > 0 && cap < doelTel ? cap : doelTel
-                  return `Kost: ${eff} × ${perp} = ${eff * perp} credits (gereserveerd tot goedkeuring). Je saldo: ${credits}.`
-                })()}
+            Vast tarief: 100 credits per actie (gereserveerd tot goedkeuring). Je saldo: {credits}.
+            {doelTel !== null ? ` Je bereikt ≈ ${doelTel} bezoeker(s) binnen ${radius} km. Uitlichten, superster of push doe je later op de goedgekeurde actie.` : ''}
           </Text>
 
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
@@ -540,6 +540,47 @@ export default function Acties() {
                 </View>
                 <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Wis</Text></Pressable>
               </View>
+
+              {a.status !== 'ingediend' && a.status !== 'afgekeurd' ? (
+                promoVoor?.id === a.id ? (
+                  <View style={s.boostVak}>
+                    <Text style={s.boostUitleg}>{PROMO[promoVoor.type].label} — {PROMO[promoVoor.type].tarief} credits per persoon</Text>
+                    <Text style={[s.label, { marginTop: 10 }]}>Middelpunt (postcode)</Text>
+                    <TextInput style={s.input} value={promoPc} onChangeText={setPromoPc} keyboardType="number-pad" maxLength={4} placeholder="bv. 9300" placeholderTextColor={C.muted} />
+                    <Text style={[s.label, { marginTop: 10 }]}>Straal</Text>
+                    <View style={s.kmRij}>
+                      {RADII.map((r) => (
+                        <Pressable key={r} onPress={() => setPromoRadius(r)} style={[s.kmChip, promoRadius === r && s.kmChipAan]}>
+                          <Text style={[s.kmChipT, promoRadius === r && s.kmChipTAan]}>{r} km</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <Text style={[s.label, { marginTop: 10 }]}>Max personen (optioneel)</Text>
+                    <TextInput style={s.input} value={promoMax} onChangeText={(t) => setPromoMax(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholder="leeg = hele straal" placeholderTextColor={C.muted} />
+                    <Text style={s.campProv}>
+                      {promoBereik === null ? 'Bereik berekenen…' : (() => {
+                        const cap = promoMax.trim() ? parseInt(promoMax, 10) : 0
+                        const eff = cap > 0 && cap < promoBereik ? cap : promoBereik
+                        const t = PROMO[promoVoor.type].tarief
+                        return `${eff} × ${t} = ${eff * t} credits (meteen afgeboekt). Saldo: ${credits}.`
+                      })()}
+                    </Text>
+                    {promoFout ? <Text style={s.boostFout}>{promoFout}</Text> : null}
+                    <Pressable onPress={doePromo} disabled={promoBezig} style={[s.knop, s.knopViolet, promoBezig && s.knopUit]}>
+                      {promoBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Activeren</Text>}
+                    </Pressable>
+                    <Pressable onPress={() => { setPromoVoor(null); setPromoFout('') }} style={{ marginTop: 10 }}>
+                      <Text style={s.annuleer}>Annuleren</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={s.kmRij}>
+                    <Pressable onPress={() => openPromo(a.id, 'uitlichten')} style={[s.kmChip, { borderColor: C.violet }]}><Text style={[s.kmChipT, { color: C.violet }]}>⭐ Uitlichten</Text></Pressable>
+                    <Pressable onPress={() => openPromo(a.id, 'superster')} style={[s.kmChip, { borderColor: C.violet }]}><Text style={[s.kmChipT, { color: C.violet }]}>🌟 Superster</Text></Pressable>
+                    <Pressable onPress={() => openPromo(a.id, 'push')} style={[s.kmChip, { borderColor: C.violet }]}><Text style={[s.kmChipT, { color: C.violet }]}>📣 Push</Text></Pressable>
+                  </View>
+                )
+              ) : null}
 
               {boostVoor === a.id ? (
                 <View style={s.boostVak}>
