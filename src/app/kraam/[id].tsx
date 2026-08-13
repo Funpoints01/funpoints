@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
@@ -77,8 +77,7 @@ export default function KraamDetail() {
   const [dFout, setDFout] = useState('')
   const [laden, setLaden] = useState(true)
 
-  useEffect(() => {
-    (async () => {
+  const laadKraam = useCallback(async () => {
       const { data: a } = await supabase.from('attractie_publiek').select('id, naam, soort, hoofdprijs_naam, hoofdprijs_punten').eq('id', id).maybeSingle()
       setAttr(a)
 
@@ -106,8 +105,14 @@ export default function KraamDetail() {
         }
       }
       setLaden(false)
-    })()
   }, [id])
+  useEffect(() => { laadKraam() }, [laadKraam])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try { await laadKraam() } finally { setRefreshing(false) }
+  }, [laadKraam])
 
   async function wisselVolg() {
     const next = !volgt
@@ -141,7 +146,8 @@ export default function KraamDetail() {
 
   return (
     <View style={s.scherm}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.coral} colors={[C.coral]} />}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.push('/bezoeker'))} hitSlop={12}><Text style={s.terug}>‹ Terug</Text></Pressable>
 
         <View style={s.hero}>

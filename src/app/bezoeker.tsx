@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Linking, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
@@ -305,8 +305,7 @@ function Home({ session }: { session: Session }) {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
 
-  useEffect(() => {
-    (async () => {
+  const laadAlles = useCallback(async () => {
       // Toon de QR meteen uit lokale cache, ook zonder internet.
       try { const cc = await AsyncStorage.getItem('fp_bezoeker_code'); if (cc) setCode(cc) } catch {}
       const { data: bez } = await supabase.from('bezoeker').select('id, naam, code, postcode, gebruikersnaam')
@@ -404,8 +403,14 @@ function Home({ session }: { session: Session }) {
       setOngelezen(count ?? 0)
 
       setLaden(false)
-    })()
-  }, [])
+  }, [session])
+  useEffect(() => { laadAlles() }, [laadAlles])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try { await laadAlles() } finally { setRefreshing(false) }
+  }, [laadAlles])
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.coral} size="large" /></View>
 
@@ -447,7 +452,8 @@ function Home({ session }: { session: Session }) {
       </Pressable>
 
       {tab === 'home' ? (
-      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.coral} colors={[C.coral]} />}>
         <View style={s.hero}>
           <View style={s.heroDeco} />
           <View style={s.heroDeco2} />
@@ -621,7 +627,8 @@ function Home({ session }: { session: Session }) {
       ) : null}
 
       {tab === 'saldo' ? (
-      <ScrollView style={s.blad} contentContainerStyle={wrapC}>
+      <ScrollView style={s.blad} contentContainerStyle={wrapC}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.coral} colors={[C.coral]} />}>
         <Text style={s.paginaTitel}>{t("⭐ Mijn saldo's")}</Text>
         {kramen.some((k) => k.saldo !== 0) ? (
           <>
