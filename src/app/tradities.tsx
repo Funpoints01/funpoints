@@ -8,9 +8,8 @@ import { BottomNav } from '../components/BottomNav'
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
   muted: '#7A7290', coral: '#FB7185', coralD: '#E11D63', green: '#10B981',
-  amber: '#F59E0B', violet: '#8B5CF6', line: 'rgba(36,27,58,0.10)',
+  amber: '#F59E0B', amberD: '#D97706', violet: '#8B5CF6', line: 'rgba(36,27,58,0.10)',
 }
-const BANDEN = ['#E11D63', '#F59E0B', '#8B5CF6', '#10B981']
 
 type Traditie = {
   key: string; naam: string; plaats: string | null
@@ -110,26 +109,25 @@ export default function Tradities() {
             </Pressable>
           </View>
         ) : (
-          <View style={{ gap: 14 }}>
-            {tradities.map((t, i) => (
-              <View key={t.key} style={s.tKaart}>
-                <View style={[s.tBand, { backgroundColor: BANDEN[i % BANDEN.length] }]}>
+          <>
+            <Text style={s.sectie}>🏅 Jouw kermis-tradities</Text>
+            <View style={{ gap: 12 }}>
+              {tradities.map((t) => (
+                <View key={t.key} style={s.tKaart}>
+                  <View style={s.tChip}><Text style={s.tChipE}>🎪</Text></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.tNaam}>{t.naam}</Text>
+                    <Text style={s.tSub}>📍 {t.plaats ?? t.naam}  ·  🎟️ {t.bezoeken} bezoek{t.bezoeken === 1 ? '' : 'en'}</Text>
                     <Text style={s.tSinds}>Sinds {t.sinds}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
+                  <View style={s.tStat}>
                     <Text style={s.tGetal}>{t.jaarOpRij}</Text>
                     <Text style={s.tGetalLbl}>{t.jaarOpRij === 1 ? 'JAAR' : 'JAAR OP RIJ'}</Text>
                   </View>
                 </View>
-                <View style={s.tVoet}>
-                  <Text style={s.tVoetT}>📍 {t.plaats ?? t.naam}</Text>
-                  <Text style={s.tVoetT}>🎟️ {t.bezoeken} bezoek{t.bezoeken === 1 ? '' : 'en'}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
       <BottomNav />
@@ -156,15 +154,18 @@ const s = StyleSheet.create({
   leegSub: { color: C.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginTop: 8 },
   leegKnop: { marginTop: 18, backgroundColor: C.coral, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 13 },
   leegKnopT: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  sectie: { color: C.ink, fontSize: 17, fontWeight: '900', marginTop: 22, marginBottom: 12 },
   tKaart: {
-    backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2,
+    backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line,
+    padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2,
   },
-  tBand: { flexDirection: 'row', alignItems: 'center', padding: 18 },
-  tNaam: { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: -0.3 },
-  tSinds: { color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600', marginTop: 2 },
-  tGetal: { color: '#fff', fontSize: 30, fontWeight: '900', lineHeight: 32 },
-  tGetalLbl: { color: 'rgba(255,255,255,0.92)', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.5 },
-  tVoet: { flexDirection: 'row', gap: 16, paddingHorizontal: 18, paddingVertical: 14 },
-  tVoetT: { color: C.muted, fontSize: 13, fontWeight: '700' },
+  tChip: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(245,158,11,0.14)', alignItems: 'center', justifyContent: 'center' },
+  tChipE: { fontSize: 24 },
+  tNaam: { color: C.ink, fontSize: 16.5, fontWeight: '900', letterSpacing: -0.2 },
+  tSub: { color: C.muted, fontSize: 12.5, fontWeight: '700', marginTop: 3 },
+  tSinds: { color: C.muted, fontSize: 11.5, fontWeight: '600', marginTop: 2, opacity: 0.8 },
+  tStat: { alignItems: 'center', justifyContent: 'center', minWidth: 60, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 14, paddingVertical: 8, paddingHorizontal: 6 },
+  tGetal: { color: C.amberD, fontSize: 25, fontWeight: '900', lineHeight: 27 },
+  tGetalLbl: { color: C.amberD, fontSize: 8.5, fontWeight: '900', letterSpacing: 0.3, marginTop: 1, textAlign: 'center' },
 })
