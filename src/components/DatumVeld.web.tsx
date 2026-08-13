@@ -2,12 +2,12 @@ import React from 'react'
 
 // Web-versie: gebruikt de ingebouwde datumkiezer van de browser (<input type="date">).
 // Waarde in/uit is altijd ISO 'JJJJ-MM-DD'.
-export function DatumVeld({ value, onChange, toekomst, placeholder }: { value: string; onChange: (iso: string) => void; toekomst?: boolean; placeholder?: string }) {
+export function DatumVeld({ value, onChange, toekomst, vrij, placeholder }: { value: string; onChange: (iso: string) => void; toekomst?: boolean; vrij?: boolean; placeholder?: string }) {
   const vandaag = new Date().toISOString().slice(0, 10)
   return React.createElement('input', {
     type: 'date',
     value,
-    ...(toekomst ? { min: vandaag } : { max: vandaag }),
+    ...(vrij ? {} : toekomst ? { min: vandaag } : { max: vandaag }),
     'aria-label': placeholder ?? 'Datum',
     onChange: (e: any) => onChange(e.target.value),
     style: {

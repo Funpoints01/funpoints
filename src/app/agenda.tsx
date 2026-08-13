@@ -240,11 +240,11 @@ export default function Agenda() {
               <View style={s.datumRij}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.label}>Van</Text>
-                  <DatumVeld value={van} onChange={setVan} />
+                  <DatumVeld value={van} onChange={setVan} vrij />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.label}>Tot</Text>
-                  <DatumVeld value={tot} onChange={setTot} />
+                  <DatumVeld value={tot} onChange={setTot} vrij />
                 </View>
               </View>
 

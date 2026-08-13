@@ -18,9 +18,9 @@ function naarISO(date: Date): string {
   return `${j}-${m}-${d}`
 }
 
-export function DatumVeld({ value, onChange, toekomst, placeholder }: { value: string; onChange: (iso: string) => void; toekomst?: boolean; placeholder?: string }) {
+export function DatumVeld({ value, onChange, toekomst, vrij, placeholder }: { value: string; onChange: (iso: string) => void; toekomst?: boolean; vrij?: boolean; placeholder?: string }) {
   const [open, setOpen] = useState(false)
-  const huidig = value ? new Date(value + 'T00:00:00') : (toekomst ? new Date() : new Date(2005, 0, 1))
+  const huidig = value ? new Date(value + 'T00:00:00') : ((toekomst || vrij) ? new Date() : new Date(2005, 0, 1))
 
   return (
     <View>
@@ -34,7 +34,7 @@ export function DatumVeld({ value, onChange, toekomst, placeholder }: { value: s
         <DateTimePicker
           value={huidig}
           mode="date"
-          {...(toekomst ? { minimumDate: new Date() } : { maximumDate: new Date() })}
+          {...(vrij ? {} : toekomst ? { minimumDate: new Date() } : { maximumDate: new Date() })}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, date) => {
             if (Platform.OS !== 'ios') setOpen(false)

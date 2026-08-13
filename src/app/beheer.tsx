@@ -661,8 +661,8 @@ function Kermissen() {
           <View style={{ flex: 1 }}><Text style={s.label}>Postcode</Text><TextInput style={s.input} value={postcode} onChangeText={setPostcode} keyboardType="number-pad" maxLength={4} placeholder="optioneel" placeholderTextColor={C.muted} /></View>
         </View>
         <View style={s.rij}>
-          <View style={{ flex: 1 }}><Text style={s.label}>Van</Text><DatumVeld value={van} onChange={setVan} /></View>
-          <View style={{ flex: 1 }}><Text style={s.label}>Tot</Text><DatumVeld value={tot} onChange={setTot} /></View>
+          <View style={{ flex: 1 }}><Text style={s.label}>Van</Text><DatumVeld value={van} onChange={setVan} vrij /></View>
+          <View style={{ flex: 1 }}><Text style={s.label}>Tot</Text><DatumVeld value={tot} onChange={setTot} vrij /></View>
         </View>
         {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
         <View style={s.rij}>
