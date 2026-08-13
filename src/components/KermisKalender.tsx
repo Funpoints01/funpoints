@@ -40,7 +40,7 @@ function provVan(pc?: string | null): string | null {
 type Status = 'actief' | 'binnenkort' | 'later' | 'voorbij'
 type Item = {
   id: string; naam: string; plaats: string | null; van: string; tot: string
-  kramen: number; gevolgd: number; status: Status; inBuurt: boolean
+  kramen: number; gevolgd: number; status: Status; inBuurt: boolean; vriendenGaan: number
 }
 const FILTERS: { key: Status; label: string }[] = [
   { key: 'actief', label: '🟢 Nu actief' },
@@ -63,11 +63,13 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
   useEffect(() => {
     (async () => {
       const vandaag = new Date().toISOString().slice(0, 10)
-      const [{ data: kerm }, { data: ka }, { data: volg }] = await Promise.all([
+      const [{ data: kerm }, { data: ka }, { data: volg }, { data: gt }] = await Promise.all([
         supabase.from('kermis').select('id, naam, plaats, postcode, van, tot').order('van'),
         supabase.from('kermis_attractie').select('kermis_id, attractie_id'),
         supabase.from('kraam_volger').select('attractie_id'),
+        supabase.rpc('vrienden_gaan_tellingen'),
       ])
+      const gaMap = new Map<string, number>((gt ?? []).map((r: any) => [r.kermis_id, r.aantal]))
       const gevolgd = new Set((volg ?? []).map((r: any) => r.attractie_id))
       const perKermis = new Map<string, { totaal: number; gevolgd: number }>()
       ;(ka ?? []).forEach((r: any) => {
@@ -88,6 +90,7 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
           id: k.id, naam: k.naam, plaats: k.plaats, van: k.van, tot: k.tot,
           kramen: cnt.totaal, gevolgd: cnt.gevolgd, status,
           inBuurt: !!bezProv && !!kProv && bezProv === kProv,
+          vriendenGaan: gaMap.get(k.id) ?? 0,
         }
       })
       setItems(lijst)
@@ -164,6 +167,7 @@ export function KermisKalender({ postcode }: { postcode?: string }) {
               <View style={s.metaRij}>
                 <Text style={s.meta}>🎪 {k.kramen} {k.kramen === 1 ? t('kraam') : t('kramen')}</Text>
                 {k.gevolgd > 0 ? <Text style={[s.meta, s.metaVolg]}>❤️ {k.gevolgd} {t('die je volgt')}</Text> : null}
+                {k.vriendenGaan > 0 && k.status !== 'voorbij' ? <Text style={[s.meta, s.metaGa]}>👥 {k.vriendenGaan} {k.vriendenGaan === 1 ? t('vriend gaat') : t('vrienden gaan')}</Text> : null}
               </View>
             </Pressable>
           ))}
@@ -210,4 +214,5 @@ const s = StyleSheet.create({
   metaRij: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
   meta: { color: C.muted, fontSize: 12.5, fontWeight: '700' },
   metaVolg: { color: C.coralD },
+  metaGa: { color: C.violet },
 })

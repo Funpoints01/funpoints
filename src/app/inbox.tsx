@@ -7,7 +7,7 @@ import { BottomNav } from '../components/BottomNav'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', ink: '#241B3A', muted: '#7A7290',
-  coral: '#FB7185', violet: '#8B5CF6', green: '#10B981', line: 'rgba(36,27,58,0.10)',
+  coral: '#FB7185', violet: '#8B5CF6', green: '#10B981', veld: '#F4F1FA', line: 'rgba(36,27,58,0.10)',
 }
 const ICOON: Record<string, string> = {
   vriend_verzoek: '👋', vriend_aanvaard: '🤝', actie: '🎟️', kermis: '🎡',
@@ -25,18 +25,28 @@ export default function Inbox() {
   const insets = useSafeAreaInsets()
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   const [meldingen, setMeldingen] = useState<any[]>([])
+  const [verzoeken, setVerzoeken] = useState<any[]>([])
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('melding')
-        .select('id, type, tekst, gelezen, created_at')
-        .order('created_at', { ascending: false }).limit(60)
+      const [{ data }, { data: vz }] = await Promise.all([
+        supabase.from('melding')
+          .select('id, type, tekst, data, gelezen, created_at')
+          .order('created_at', { ascending: false }).limit(60),
+        supabase.rpc('openstaande_verzoeken'),
+      ])
       setMeldingen(data ?? [])
+      setVerzoeken((vz ?? []) as any[])
       setLaden(false)
       await supabase.rpc('markeer_meldingen_gelezen')
     })()
   }, [])
+
+  async function antwoord(verzoekId: string, aanvaard: boolean) {
+    setVerzoeken((prev) => prev.filter((x) => x.verzoek_id !== verzoekId))
+    await supabase.rpc('vriend_antwoord', { p_verzoek_id: verzoekId, p_aanvaard: aanvaard })
+  }
 
   async function wis(id: string) {
     setMeldingen((prev) => prev.filter((m) => m.id !== id))
@@ -66,17 +76,27 @@ export default function Inbox() {
           </View>
         ) : (
           <View style={{ gap: 10 }}>
-            {meldingen.map((m) => (
-              <View key={m.id} style={[s.rij, !m.gelezen && s.rijNieuw]}>
-                <View style={s.icoon}><Text style={{ fontSize: 20 }}>{ICOON[m.type] ?? '🔔'}</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.tekst}>{m.tekst}</Text>
-                  <Text style={s.tijd}>{geleden(m.created_at)} geleden</Text>
+            {meldingen.map((m) => {
+              const vz = m.type === 'vriend_verzoek' && m.data?.van
+                ? verzoeken.find((x) => x.van_bezoeker === m.data.van) : null
+              return (
+                <View key={m.id} style={[s.rij, !m.gelezen && s.rijNieuw]}>
+                  <View style={s.icoon}><Text style={{ fontSize: 20 }}>{ICOON[m.type] ?? '🔔'}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.tekst}>{m.tekst}</Text>
+                    <Text style={s.tijd}>{geleden(m.created_at)} geleden</Text>
+                    {vz ? (
+                      <View style={s.vzKnoppen}>
+                        <Pressable onPress={() => antwoord(vz.verzoek_id, true)} style={s.jaKnop}><Text style={s.jaKnopT}>Aanvaard</Text></Pressable>
+                        <Pressable onPress={() => antwoord(vz.verzoek_id, false)} style={s.neeKnop}><Text style={s.neeKnopT}>Weiger</Text></Pressable>
+                      </View>
+                    ) : null}
+                  </View>
+                  {!m.gelezen ? <View style={s.stip} /> : null}
+                  <Pressable onPress={() => wis(m.id)} hitSlop={8} style={s.wisKnop}><Text style={s.wisKnopT}>✕</Text></Pressable>
                 </View>
-                {!m.gelezen ? <View style={s.stip} /> : null}
-                <Pressable onPress={() => wis(m.id)} hitSlop={8} style={s.wisKnop}><Text style={s.wisKnopT}>✕</Text></Pressable>
-              </View>
-            ))}
+              )
+            })}
           </View>
         )}
       </ScrollView>
@@ -104,4 +124,9 @@ const s = StyleSheet.create({
   tekst: { color: C.ink, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   tijd: { color: C.muted, fontSize: 12, marginTop: 3 },
   stip: { width: 9, height: 9, borderRadius: 999, backgroundColor: C.violet },
+  vzKnoppen: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  jaKnop: { backgroundColor: C.green, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  jaKnopT: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  neeKnop: { backgroundColor: C.veld, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  neeKnopT: { color: C.muted, fontWeight: '800', fontSize: 13 },
 })

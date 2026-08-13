@@ -26,6 +26,9 @@ export default function KermisDetail() {
   const [loopt, setLoopt] = useState(false)
   const [ingecheckt, setIngecheckt] = useState(false)
   const [inchBezig, setInchBezig] = useState(false)
+  const [gaIk, setGaIk] = useState(false)
+  const [gaBezig, setGaBezig] = useState(false)
+  const [vriendenGaan, setVriendenGaan] = useState<any[]>([])
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
@@ -48,6 +51,10 @@ export default function KermisDetail() {
           setVolgSet(new Set((v ?? []).map((r: any) => r.attractie_id)))
           const { data: ic } = await supabase.from('incheck').select('kermis_id').eq('kermis_id', id).maybeSingle()
           setIngecheckt(!!ic)
+          const { data: ga } = await supabase.from('kermis_ga').select('kermis_id').eq('kermis_id', id).maybeSingle()
+          setGaIk(!!ga)
+          const { data: vg } = await supabase.rpc('kermis_vrienden_gaan', { p_kermis_id: id })
+          setVriendenGaan((vg ?? []) as any[])
         }
       }
       setLaden(false)
@@ -59,6 +66,13 @@ export default function KermisDetail() {
     const { error } = await supabase.rpc('incheck_kermis', { p_kermis_id: id })
     setInchBezig(false)
     if (!error) setIngecheckt(true)
+  }
+
+  async function toggleGa() {
+    const next = !gaIk
+    setGaIk(next); setGaBezig(true)
+    await supabase.rpc('zet_kermis_ga', { p_kermis_id: id, p_ga: next })
+    setGaBezig(false)
   }
 
   async function wisselVolg(attractieId: string) {
@@ -80,6 +94,8 @@ export default function KermisDetail() {
     </View>
   )
 
+  const voorbij = !!kermis && kermis.tot < new Date().toISOString().slice(0, 10)
+
   return (
     <View style={s.scherm}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={wrapC}>
@@ -90,18 +106,38 @@ export default function KermisDetail() {
           <Text style={s.heroTitel}>{kermis.naam}</Text>
           <Text style={s.heroSub}>{kermis.plaats}{kermis.postcode ? ` · ${kermis.postcode}` : ''}</Text>
           <View style={s.datumPil}><Text style={s.datumPilT}>{kort(kermis.van)} – {kort(kermis.tot)}</Text></View>
-          {isBez ? (
-            ingecheckt ? (
-              <View style={s.inchKlaar}><Text style={s.inchKlaarT}>✓ Je bent hier ingecheckt</Text></View>
-            ) : loopt ? (
-              <Pressable onPress={incheckNu} disabled={inchBezig} style={s.inchKnop}>
-                <Text style={s.inchKnopT}>{inchBezig ? '…' : '📍 Ik ben hier — inchecken'}</Text>
+          {isBez && !voorbij ? (
+            <View style={s.actieVak}>
+              {loopt ? (
+                ingecheckt ? (
+                  <View style={s.inchKlaar}><Text style={s.inchKlaarT}>✓ Je bent hier ingecheckt</Text></View>
+                ) : (
+                  <Pressable onPress={incheckNu} disabled={inchBezig} style={s.inchKnop}>
+                    <Text style={s.inchKnopT}>{inchBezig ? '…' : '📍 Ik ben hier — inchecken'}</Text>
+                  </Pressable>
+                )
+              ) : null}
+              <Pressable onPress={toggleGa} disabled={gaBezig} style={[s.gaKnop, gaIk && s.gaKnopAan]}>
+                <Text style={[s.gaKnopT, gaIk && s.gaKnopTAan]}>{gaBezig ? '…' : gaIk ? '✓ Ik ga' : '🎟️ Ik ga'}</Text>
               </Pressable>
-            ) : (
-              <Text style={s.inchHint}>Inchecken kan zodra de kermis loopt</Text>
-            )
+            </View>
           ) : null}
         </View>
+
+        {isBez && !voorbij && vriendenGaan.length > 0 ? (
+          <View style={s.vriendenVak}>
+            <Text style={s.vriendenKop}>👥 {vriendenGaan.length} {vriendenGaan.length === 1 ? 'vriend gaat' : 'vrienden gaan'}</Text>
+            <View style={s.vriendenRij}>
+              {vriendenGaan.map((v) => (
+                <Pressable key={v.bezoeker_id} style={s.vriendChip}
+                  onPress={() => router.push((`/vriend/${v.bezoeker_id}?naam=${encodeURIComponent(v.gebruikersnaam ? '@' + v.gebruikersnaam : (v.naam || 'Vriend'))}`) as any)}>
+                  <View style={s.vriendAvatar}><Text style={s.vriendAvatarT}>{((v.gebruikersnaam || v.naam || '?').slice(0, 1)).toUpperCase()}</Text></View>
+                  <Text style={s.vriendChipT}>{v.gebruikersnaam ? '@' + v.gebruikersnaam : (v.naam || 'Vriend')}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <Text style={s.sectie}>Kramen op deze kermis ({kramen.length})</Text>
         {kramen.length === 0
@@ -152,6 +188,18 @@ const s = StyleSheet.create({
   inchKlaar: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
   inchKlaarT: { color: '#fff', fontWeight: '800', fontSize: 14 },
   inchHint: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontWeight: '600', marginTop: 12 },
+  actieVak: { marginTop: 14, gap: 10, alignSelf: 'stretch', alignItems: 'center' },
+  gaKnop: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 22, paddingVertical: 11 },
+  gaKnopAan: { backgroundColor: '#fff' },
+  gaKnopT: { color: '#fff', fontWeight: '900', fontSize: 14.5 },
+  gaKnopTAan: { color: C.coralD },
+  vriendenVak: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 16, marginTop: 18 },
+  vriendenKop: { color: C.ink, fontSize: 15, fontWeight: '900', marginBottom: 12 },
+  vriendenRij: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  vriendChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.bg, borderRadius: 999, paddingLeft: 4, paddingRight: 12, paddingVertical: 4 },
+  vriendAvatar: { width: 28, height: 28, borderRadius: 999, backgroundColor: '#8B5CF6', alignItems: 'center', justifyContent: 'center' },
+  vriendAvatarT: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  vriendChipT: { color: C.ink, fontSize: 13, fontWeight: '700' },
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
   leeg: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 18 },
   rij: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 13 },

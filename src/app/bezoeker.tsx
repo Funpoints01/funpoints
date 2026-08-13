@@ -544,7 +544,10 @@ function Home({ session }: { session: Session }) {
 
         {gewoneActies.length > 0 ? (
           <>
-            <Text style={s.sectie}>{t('🔥 Acties & deals')}</Text>
+            <Pressable style={s.dealsKop} onPress={() => router.push('/deals' as any)}>
+              <Text style={s.dealsKopT}>{t('🔥 Acties & deals')}</Text>
+              <Text style={s.dealsMeer}>{t('Toon alles')} ›</Text>
+            </Pressable>
             <View style={{ gap: 10 }}>
               {gewoneActies.map((a) => (
                 <Pressable key={a.id} style={[s.actieKaart, a.geboost && s.actieBoost]}
@@ -914,6 +917,9 @@ const s = StyleSheet.create({
   binnenkortSub: { color: C.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginTop: 8 },
 
   sectie: { color: C.ink, fontSize: 18, fontWeight: '900', marginTop: 26, marginBottom: 12 },
+  dealsKop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 26, marginBottom: 12 },
+  dealsKopT: { color: C.ink, fontSize: 18, fontWeight: '900' },
+  dealsMeer: { color: C.coralD, fontSize: 13.5, fontWeight: '800' },
   favKaart: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(251,113,133,0.4)', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   favIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: 'rgba(251,113,133,0.14)', alignItems: 'center', justifyContent: 'center' },
   favNaam: { color: C.ink, fontSize: 15.5, fontWeight: '800' },

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 import { BottomNav } from '../../components/BottomNav'
+import { niveau } from '../../lib/levels'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', ink: '#241B3A', muted: '#7A7290',
@@ -11,6 +12,13 @@ const C = {
   violet: '#8B5CF6', line: 'rgba(36,27,58,0.10)',
 }
 const BANDEN = ['#6D28D9', '#E11D63', '#F59E0B', '#10B981']
+const NIVEAUS = [
+  { icon: '🎯', titel: 'Ontdekker', k: 'bezocht', basis: [3, 5, 8, 12, 20], kleur: C.coral, eenheid: 'kramen' },
+  { icon: '🎪', titel: 'Kermisganger', k: 'checkins', basis: [1, 3, 6, 10, 20], kleur: C.violet, eenheid: 'check-ins' },
+  { icon: '⭐', titel: 'Puntenjager', k: 'punten', basis: [50, 150, 350, 700, 1500], kleur: C.amber, eenheid: 'punten' },
+  { icon: '❤️', titel: 'Kraamfan', k: 'gevolgd', basis: [1, 3, 5, 10, 20], kleur: C.green, eenheid: 'gevolgde kramen' },
+  { icon: '🔥', titel: 'Streakmeester', k: 'streak', basis: [2, 3, 5, 7, 14], kleur: C.coralD, eenheid: 'dagen op rij' },
+] as const
 
 type Traditie = { key: string; naam: string; plaats: string | null; jaarOpRij: number; sinds: number; bezoeken: number }
 
@@ -21,6 +29,7 @@ export default function VriendProfiel() {
   const wrapC = [s.wrap, { paddingTop: Platform.OS === 'web' ? 56 : insets.top + 14 }]
   const [tradities, setTradities] = useState<Traditie[]>([])
   const [bezoeken, setBezoeken] = useState(0)
+  const [stats, setStats] = useState<any>(null)
   const [fout, setFout] = useState(false)
   const [laden, setLaden] = useState(true)
 
@@ -45,11 +54,15 @@ export default function VriendProfiel() {
         return { key, naam: g.naam, plaats: g.plaats, jaarOpRij: streak, sinds: jaren[jaren.length - 1], bezoeken: g.bezoeken }
       }).sort((a, b) => b.jaarOpRij - a.jaarOpRij || b.bezoeken - a.bezoeken)
       setTradities(lijst)
+      const { data: st } = await supabase.rpc('bezoeker_stats', { p_bezoeker_id: id })
+      setStats(Array.isArray(st) ? st[0] : st)
       setLaden(false)
     })()
   }, [id])
 
   const naamStr = typeof naam === 'string' ? naam : 'Vriend'
+
+  const niveaus = stats ? NIVEAUS.map((d) => { const w = Number((stats as any)[d.k] ?? 0); return { ...d, waarde: w, ...niveau(w, [...d.basis]) } }) : []
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.violet} size="large" /></View>
 
@@ -67,6 +80,32 @@ export default function VriendProfiel() {
             <View style={s.heroStat}><Text style={s.heroNum}>{bezoeken}</Text><Text style={s.heroLbl}>bezoeken</Text></View>
           </View>
         </View>
+
+        {stats ? (
+          <>
+            <Text style={s.sectie}>🏅 Levels</Text>
+            <View style={{ gap: 10 }}>
+              {niveaus.map((nv, i) => {
+                const pct = Math.max(0, Math.min(1, (nv.waarde - nv.start) / (nv.volgende - nv.start)))
+                const resterend = Math.max(0, nv.volgende - nv.waarde)
+                return (
+                  <View key={i} style={s.chalKaart}>
+                    <View style={[s.lvlIcon, { backgroundColor: nv.kleur + '22' }]}><Text style={{ fontSize: 22 }}>{nv.icon}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <View style={s.chalTop}>
+                        <Text style={s.chalTitel}>{nv.titel}</Text>
+                        <View style={[s.lvlBadge, { backgroundColor: nv.kleur }]}><Text style={s.lvlBadgeT}>Level {nv.level}</Text></View>
+                      </View>
+                      <Text style={s.chalDesc}>Nog {resterend} {nv.eenheid} tot level {nv.level + 1}</Text>
+                      <View style={s.balkBg}><View style={[s.balkVul, { width: `${Math.round(pct * 100)}%`, backgroundColor: nv.kleur }]} /></View>
+                      <Text style={s.lvlSub}>{nv.waarde} / {nv.volgende} {nv.eenheid}</Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          </>
+        ) : null}
 
         {fout ? (
           <View style={s.leeg}><Text style={s.leegT}>Je kan de tradities van deze bezoeker niet bekijken.</Text></View>
@@ -128,4 +167,14 @@ const s = StyleSheet.create({
   tGetalLbl: { color: 'rgba(255,255,255,0.92)', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.5 },
   tVoet: { flexDirection: 'row', gap: 16, paddingHorizontal: 18, paddingVertical: 14 },
   tVoetT: { color: C.muted, fontSize: 13, fontWeight: '700' },
+  chalKaart: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 14 },
+  lvlIcon: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  chalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  chalTitel: { color: C.ink, fontSize: 15, fontWeight: '900' },
+  lvlBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  lvlBadgeT: { color: '#fff', fontSize: 10.5, fontWeight: '900' },
+  chalDesc: { color: C.muted, fontSize: 12, fontWeight: '600', marginTop: 3 },
+  balkBg: { height: 7, borderRadius: 999, backgroundColor: C.line, marginTop: 8, overflow: 'hidden' },
+  balkVul: { height: 7, borderRadius: 999 },
+  lvlSub: { color: C.muted, fontSize: 11, fontWeight: '700', marginTop: 5 },
 })
