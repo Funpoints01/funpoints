@@ -39,6 +39,15 @@ const SS_UREN = [4, 8, 12]
 const RADII = [5, 10, 20, 35, 50, 75, 100]
 const PROMO = { uitlichten: { label: '⭐ Uitlichten', tarief: 2 }, superster: { label: '🌟 Superster', tarief: 3 }, push: { label: '📣 Pushmelding', tarief: 5 } } as const
 type PromoType = keyof typeof PROMO
+type Groep = 'lopend' | 'ingediend' | 'verlopen' | 'afgekeurd'
+const GROEP_LABEL: Record<Groep, string> = { lopend: 'Lopende acties', ingediend: 'Ter goedkeuring', verlopen: 'Verlopen acties', afgekeurd: 'Afgekeurde acties' }
+const GROEP_ORDER: Groep[] = ['lopend', 'ingediend', 'verlopen', 'afgekeurd']
+function groepVan(a: { status: string | null; tot: string }, vandaag: string): Groep {
+  if (a.status === 'afgekeurd') return 'afgekeurd'
+  if (a.status === 'ingediend') return 'ingediend'
+  if (a.tot < vandaag) return 'verlopen'
+  return 'lopend'
+}
 function boostTot(ts: string): string { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}` }
 
 // --- Regio-targeting (interim: provincie-niveau) ---
@@ -86,7 +95,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null; status: string | null; afkeur_reden: string | null }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null; status: string | null; afkeur_reden: string | null; center_postcode: string | null; radius: number | null }
 
 export default function Acties() {
   const router = useRouter()
@@ -250,7 +259,7 @@ export default function Acties() {
     let act: Actie[] = []
     if (eigenIds.length) {
       const { data } = await supabase.from('actie')
-        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment, status, afkeur_reden')
+        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment, status, afkeur_reden, center_postcode, radius')
         .in('attractie_id', eigenIds).order('van')
       act = (data ?? []) as Actie[]
     }
@@ -318,7 +327,13 @@ export default function Acties() {
   }, [promoVoor, promoPc, promoRadius, acties])
 
   function openPromo(id: string, type: PromoType) {
-    setPromoVoor({ id, type }); setPromoPc(''); setPromoMax(''); setPromoRadius(20); setPromoFout(''); setPromoBereik(null)
+    const act = acties.find((x) => x.id === id)
+    const maxR = act?.radius ?? 100
+    setPromoVoor({ id, type })
+    setPromoPc(act?.center_postcode ?? '')
+    setPromoMax('')
+    setPromoRadius(Math.min(20, maxR))
+    setPromoFout(''); setPromoBereik(null)
   }
   async function doePromo() {
     if (!promoVoor) return
@@ -330,7 +345,13 @@ export default function Acties() {
       p_actie_id: promoVoor.id, p_postcode: promoPc.trim(), p_radius: promoRadius,
       p_max: promoMax.trim() ? parseInt(promoMax, 10) : null,
     })
-    if (error) { setPromoBezig(false); setPromoFout(error.message.includes('ONVOLDOENDE') ? 'Niet genoeg credits.' : 'Activeren mislukt.'); return }
+    if (error) {
+      setPromoBezig(false)
+      const m = error.message.includes('ONVOLDOENDE') ? 'Niet genoeg credits.'
+        : error.message.includes('STRAAL_BUITEN_ACTIE') ? 'Je straal reikt buiten je actie. Kies een kleinere straal of hetzelfde middelpunt.'
+        : 'Activeren mislukt.'
+      setPromoFout(m); return
+    }
     const d = data as { credits?: number; campagne_id?: string; kost?: number } | null
     if (promoVoor.type === 'push' && d?.campagne_id) {
       await supabase.functions.invoke('verstuur-push', { body: { campagne_id: d.campagne_id } })
@@ -363,6 +384,11 @@ export default function Acties() {
   )
 
   const naamVan = (id: string) => attracties.find((a) => a.id === id)?.naam ?? '—'
+
+  const vandaag = new Date().toISOString().slice(0, 10)
+  const gesorteerd = acties
+    .map((a) => ({ ...a, groep: groepVan(a, vandaag) }))
+    .sort((x, y) => GROEP_ORDER.indexOf(x.groep) - GROEP_ORDER.indexOf(y.groep))
 
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -517,8 +543,10 @@ export default function Acties() {
         <Text style={[s.blokTitel, { marginTop: 24, marginBottom: 4 }]}>Je acties</Text>
         {acties.length === 0
           ? <Text style={s.sub}>Nog geen acties.</Text>
-          : acties.map((a) => (
-            <View key={a.id} style={s.actieKaart}>
+          : gesorteerd.map((a, i) => (
+            <View key={a.id}>
+              {(i === 0 || gesorteerd[i - 1].groep !== a.groep) ? <Text style={s.groepKop}>{GROEP_LABEL[a.groep]}</Text> : null}
+            <View style={s.actieKaart}>
               <View style={s.actieRij}>
                 <View style={{ flex: 1 }}>
                   <View style={s.actieTop}>
@@ -541,7 +569,7 @@ export default function Acties() {
                 <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Wis</Text></Pressable>
               </View>
 
-              {a.status !== 'ingediend' && a.status !== 'afgekeurd' ? (
+              {a.groep === 'lopend' ? (
                 promoVoor?.id === a.id ? (
                   <View style={s.boostVak}>
                     <Text style={s.boostUitleg}>{PROMO[promoVoor.type].label} — {PROMO[promoVoor.type].tarief} credits per persoon</Text>
@@ -549,12 +577,13 @@ export default function Acties() {
                     <TextInput style={s.input} value={promoPc} onChangeText={setPromoPc} keyboardType="number-pad" maxLength={4} placeholder="bv. 9300" placeholderTextColor={C.muted} />
                     <Text style={[s.label, { marginTop: 10 }]}>Straal</Text>
                     <View style={s.kmRij}>
-                      {RADII.map((r) => (
+                      {RADII.filter((r) => r <= (a.radius ?? 100)).map((r) => (
                         <Pressable key={r} onPress={() => setPromoRadius(r)} style={[s.kmChip, promoRadius === r && s.kmChipAan]}>
                           <Text style={[s.kmChipT, promoRadius === r && s.kmChipTAan]}>{r} km</Text>
                         </Pressable>
                       ))}
                     </View>
+                    <Text style={s.campProv}>Je promotie blijft binnen de {a.radius ?? 0} km van je actie.</Text>
                     <Text style={[s.label, { marginTop: 10 }]}>Max personen (optioneel)</Text>
                     <TextInput style={s.input} value={promoMax} onChangeText={(t) => setPromoMax(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholder="leeg = hele straal" placeholderTextColor={C.muted} />
                     <Text style={s.campProv}>
@@ -714,6 +743,7 @@ export default function Acties() {
                 </View>
               ) : null}
             </View>
+            </View>
           ))}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -740,6 +770,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   blokTitel: { color: C.ink, fontSize: 16, fontWeight: '800' },
+  groepKop: { color: C.ink, fontSize: 15, fontWeight: '800', marginTop: 18, marginBottom: 8 },
   label: { color: C.muted, fontSize: 13, fontWeight: '700', marginBottom: 7 },
   input: { backgroundColor: C.veld, borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.ink, fontSize: 16, paddingHorizontal: 14, paddingVertical: 13 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
