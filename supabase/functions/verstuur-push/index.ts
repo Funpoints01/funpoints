@@ -85,7 +85,9 @@ Deno.serve(async (req) => {
 
     let ok = 0
     let mislukt = 0
-    for (const s of subs ?? []) {
+
+    // 1) Web-push (browser / PWA op het beginscherm)
+    for (const s of (subs ?? []).filter((r: any) => r.kanaal === 'web' || r.kanaal == null)) {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -97,6 +99,45 @@ Deno.serve(async (req) => {
         if (e?.statusCode === 404 || e?.statusCode === 410) {
           await supa.from('push_subscription').delete().eq('endpoint', s.endpoint)
         }
+      }
+    }
+
+    // 2) Native push (iOS/Android) via de Expo Push Service.
+    const expoTokens = (subs ?? [])
+      .filter((r: any) => r.kanaal === 'expo' && r.token)
+      .map((r: any) => r.token as string)
+    for (let i = 0; i < expoTokens.length; i += 100) {
+      const batch = expoTokens.slice(i, i + 100)
+      const messages = batch.map((to: string) => ({
+        to,
+        title: pushTitle,
+        body: pushBody,
+        sound: 'default',
+        priority: 'high',
+        channelId: 'default',
+        data: { url: '/bezoeker' },
+      }))
+      try {
+        const res = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(messages),
+        })
+        const j = await res.json().catch(() => ({}))
+        const tickets = Array.isArray(j?.data) ? j.data : []
+        for (let k = 0; k < batch.length; k++) {
+          const t = tickets[k]
+          if (t?.status === 'ok') {
+            ok++
+          } else {
+            mislukt++
+            if (t?.details?.error === 'DeviceNotRegistered') {
+              await supa.from('push_token').delete().eq('token', batch[k])
+            }
+          }
+        }
+      } catch (_e) {
+        mislukt += batch.length
       }
     }
 

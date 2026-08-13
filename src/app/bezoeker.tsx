@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Linking, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
@@ -9,6 +9,7 @@ import type { Session } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import { pushOndersteund, pushStatus, zetPushAan, zetPushUit, type PushStatus } from '../lib/push'
+import { nativePushStatus, vraagNativePush, type NativePushStatus } from '../lib/pushNative'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KermisKalender } from '../components/KermisKalender'
 import { Vrienden } from '../components/Vrienden'
@@ -200,6 +201,7 @@ function Home({ session }: { session: Session }) {
   const [vGebruikt, setVGebruikt] = useState<string | null>(null)
   const [vLaden, setVLaden] = useState(false)
   const [push, setPush] = useState<PushStatus>('niet')
+  const [natief, setNatief] = useState<NativePushStatus>('niet')
   const [pushBezig, setPushBezig] = useState(false)
   const [tab, setTab] = useState<(typeof TABS)[number]['key'] | 'settings'>('home')
   const insets = useSafeAreaInsets()
@@ -248,6 +250,7 @@ function Home({ session }: { session: Session }) {
   }
 
   useEffect(() => { pushStatus().then(setPush) }, [])
+  useEffect(() => { if (Platform.OS !== 'web') vraagNativePush().then(setNatief) }, [])
   // Een kaartje dat bij registratie (met e-mailbevestiging) nog niet
   // gekoppeld kon worden, wordt hier bij de eerste login afgerond.
   useEffect(() => { supabase.rpc('claim_pending').then(() => {}, () => {}) }, [])
@@ -275,6 +278,11 @@ function Home({ session }: { session: Session }) {
     if (push === 'aan') { await zetPushUit(); setPush('uit') }
     else { setPush(await zetPushAan()) }
     setPushBezig(false)
+  }
+  async function pushAanzetten() {
+    const st = await nativePushStatus()
+    if (st === 'denied') { Linking.openSettings(); return }
+    setNatief(await vraagNativePush())
   }
 
   async function toonVoucher(a: any) {
@@ -475,6 +483,13 @@ function Home({ session }: { session: Session }) {
                 : t('🔔 Zet meldingen aan en mis geen enkele actie in je buurt')}
             </Text>
             {push !== 'geblokkeerd' ? <Text style={s.pushBalkKnop}>{pushBezig ? '…' : t('Aanzetten')}</Text> : null}
+          </Pressable>
+        ) : null}
+
+        {Platform.OS !== 'web' && (natief === 'denied' || natief === 'undetermined') ? (
+          <Pressable style={s.pushRood} onPress={pushAanzetten}>
+            <Text style={s.pushRoodT}>{t('🔔 Zet meldingen aan — anders mis je acties en deals van je favoriete kramen.')}</Text>
+            <Text style={s.pushRoodKnop}>{t('Aanzetten')}</Text>
           </Pressable>
         ) : null}
 
@@ -698,11 +713,21 @@ function Home({ session }: { session: Session }) {
                 </Text>
               </Pressable>
             </View>
+          ) : Platform.OS !== 'web' ? (
+            <View style={s.instelRij}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.instelLabel}>{t('Pushmeldingen')}</Text>
+                <Text style={s.veldHint}>{t('Een seintje bij nieuwe acties in je buurt.')}</Text>
+              </View>
+              <Pressable onPress={pushAanzetten} style={[s.miniKnop, natief === 'granted' && s.miniKnopAan]}>
+                <Text style={[s.miniKnopT, natief === 'granted' && s.miniKnopTAan]}>
+                  {natief === 'granted' ? t('Aan') : natief === 'denied' ? t('Geblokkeerd') : t('Uit')}
+                </Text>
+              </Pressable>
+            </View>
           ) : (
             <Text style={s.sub}>
-              {Platform.OS === 'web'
-                ? t('Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).')
-                : t('Pushmeldingen komen binnenkort in de app.')}
+              {t('Meldingen werken in de Funpoints-app op je beginscherm (voeg de site toe via ‘Zet op beginscherm’).')}
             </Text>
           )}
         </View>
@@ -975,6 +1000,12 @@ const s = StyleSheet.create({
   pushBalkAan: { backgroundColor: 'rgba(16,185,129,0.10)', borderColor: 'rgba(16,185,129,0.30)' },
   pushBalkT: { color: C.coralD, fontSize: 13.5, fontWeight: '700', flex: 1, lineHeight: 18 },
   pushBalkKnop: { color: C.coralD, fontSize: 13.5, fontWeight: '900' },
+  pushRood: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14,
+    backgroundColor: C.red, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16,
+  },
+  pushRoodT: { color: '#fff', fontSize: 13.5, fontWeight: '800', flex: 1, lineHeight: 18 },
+  pushRoodKnop: { color: '#fff', fontSize: 13.5, fontWeight: '900', textDecorationLine: 'underline' },
   voucherChip: { backgroundColor: 'rgba(16,185,129,0.14)', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
   voucherChipT: { color: C.green, fontWeight: '800', fontSize: 12.5 },
   vOverlay: {

@@ -1,12 +1,17 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { initNativePush } from '../lib/pushNative';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { TaalProvider } from '../lib/i18n';
 import { Foutvanger } from '../components/Foutvanger';
 
 export default function RootLayout() {
+  const router = useRouter();
+  useEffect(() => {
+    initNativePush((url) => router.push(url as any));
+  }, []);
   useEffect(() => {
     if (
       Platform.OS === 'web' &&
