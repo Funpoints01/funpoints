@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "384094932245",
+    "project_id": "funpoints-6f8f2",
+    "storage_bucket": "funpoints-6f8f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:384094932245:android:0df9ab157147b96173ed1c",
+        "android_client_info": {
+          "package_name": "be.funpoints.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBG7xQLHqmDXJMIYzvp5Wr-2Kd_sv39JXs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

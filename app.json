@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "be.funpoints.app",
+    "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#10B981",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
