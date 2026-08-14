@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const pakket = String(body.pakket || '')
     const maxA = Number.isFinite(body.max_attracties)
       ? Math.max(1, Math.floor(body.max_attracties))
-      : 1  // 1 kraam per pakket; beheer kan dit nadien hoger zetten
+      : (pakket === 'start' ? 1 : 2)
     if (!email || !naam) return json({ error: 'ONVOLLEDIG' }, 400)
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'ONGELDIGE_MAIL' }, 400)
     if (pakket !== 'start' && pakket !== 'volledig') return json({ error: 'ONGELDIG_PAKKET' }, 400)
