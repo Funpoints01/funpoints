@@ -255,6 +255,7 @@ function Overzicht() {
     <>
       <View style={s.tegels}>
         <View style={s.tegel}><Text style={s.tegelNum}>{ov?.actieve_accounts ?? 0}</Text><Text style={s.tegelLbl}>Actieve accounts</Text></View>
+        <View style={s.tegel}><Text style={[s.tegelNum, { color: C.violet }]}>{ov?.push_aan ?? 0}</Text><Text style={s.tegelLbl}>Push aan</Text></View>
         <View style={s.tegel}><Text style={[s.tegelNum, { color: C.amber }]}>{ov?.slapende_kaartjes ?? 0}</Text><Text style={s.tegelLbl}>Slapende kaartjes</Text></View>
         <View style={s.tegel}><Text style={[s.tegelNum, { color: C.green }]}>{ov?.geclaimde_kaartjes ?? 0}</Text><Text style={s.tegelLbl}>Geclaimde kaartjes</Text></View>
         <View style={s.tegel}><Text style={s.tegelNum}>{fin?.uitbaters ?? 0}</Text><Text style={s.tegelLbl}>Uitbaters</Text></View>

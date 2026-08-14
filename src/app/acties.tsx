@@ -535,10 +535,16 @@ export default function Acties() {
               ? <Text style={s.tellerLeeg}>Kies attractie, postcode en straal om je doelgroep te zien.</Text>
               : <Text style={s.tellerT}><Text style={s.tellerGetal}>≈ {doelTel}</Text> bezoeker(s) binnen {radius} km</Text>}
           </View>
-          <Text style={s.campProv}>
-            Vast tarief: 100 credits per actie (gereserveerd tot goedkeuring). Je saldo: {credits}.
-            {doelTel !== null ? ` Je bereikt ≈ ${doelTel} bezoeker(s) binnen ${radius} km. Uitlichten, superster of push doe je later op de goedgekeurde actie.` : ''}
-          </Text>
+          <View style={s.bon}>
+            <Text style={s.bonKop}>Afrekening</Text>
+            <View style={s.bonRij}><Text style={s.bonLbl}>Vast tarief</Text><Text style={s.bonVal}>100 credits</Text></View>
+            <View style={s.bonRij}><Text style={s.bonLbl}>Saldo nu</Text><Text style={s.bonVal}>{credits}</Text></View>
+            <View style={s.bonLijn} />
+            <View style={s.bonRij}><Text style={s.bonTotLbl}>Gereserveerd</Text><Text style={s.bonTotVal}>100 credits</Text></View>
+            <View style={s.bonRij}><Text style={s.bonLbl}>Saldo na reservering</Text><Text style={[s.bonVal, { color: (credits - 100) < 0 ? C.red : C.ink, fontWeight: '800' }]}>{credits - 100} credits</Text></View>
+            {(credits - 100) < 0 ? <Text style={s.bonWaarschuw}>Onvoldoende credits om deze actie in te dienen.</Text> : null}
+            <Text style={s.bonNoot}>Wordt terugbetaald bij afkeuring. Uitlichten, superster of push doe je later op de goedgekeurde actie.</Text>
+          </View>
 
           {fout ? <View style={s.foutBox}><Text style={s.foutT}>{fout}</Text></View> : null}
           {okMelding ? <Text style={{ color: C.green, fontSize: 13, fontWeight: '700', marginTop: 10 }}>{okMelding}</Text> : null}
@@ -869,6 +875,7 @@ const s = StyleSheet.create({
   bonTotLbl: { color: C.ink, fontSize: 15, fontWeight: '800' },
   bonTotVal: { color: C.violet, fontSize: 16, fontWeight: '900' },
   bonWaarschuw: { color: C.red, fontSize: 12.5, fontWeight: '700', marginTop: 2 },
+  bonNoot: { color: C.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
   afr: { flexDirection: 'row', backgroundColor: C.veld, borderRadius: 12, paddingVertical: 10, marginTop: 10, alignItems: 'center' },
   afrCel: { flex: 1, alignItems: 'center' },
   afrDeel: { width: 1, height: 26, backgroundColor: C.line },
