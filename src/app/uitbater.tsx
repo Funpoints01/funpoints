@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -115,6 +115,7 @@ function Dashboard({ session }: { session: Session }) {
   const [leeftijden, setLeeftijden] = useState<{ categorie: string; aantal: number }[]>([])
   const [actieStats, setActieStats] = useState<{ actie_id: string; attractie_id: string; titel: string; eenmalig: boolean; claims: number; ingewisseld: number }[]>([])
   const [laden, setLaden] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -224,9 +225,14 @@ function Dashboard({ session }: { session: Session }) {
         <FactuurBanner />
         <View style={s.topbar}>
           <Logo />
-          <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>
-            <Text style={s.uitlog}>Uitloggen</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Pressable onPress={() => setMenuOpen(true)} style={s.menuKnop} hitSlop={8}>
+              <Text style={s.menuKnopT}>☰ Menu</Text>
+            </Pressable>
+            <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>
+              <Text style={s.uitlog}>Uitloggen</Text>
+            </Pressable>
+          </View>
         </View>
 
         <Text style={s.titel}>Dashboard</Text>
@@ -334,18 +340,6 @@ function Dashboard({ session }: { session: Session }) {
           </View>
         </View>
 
-        <View style={[s.knopRij, { flexDirection: breed ? 'row' : 'column' }]}>
-          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/attracties')}>
-            <Text style={s.knopVioletT}>🎡 Attracties & logins</Text>
-          </Pressable>
-          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/agenda')}>
-            <Text style={s.knopVioletT}>📅 Agenda beheren</Text>
-          </Pressable>
-          <Pressable style={[s.knop, s.knopViolet, breed ? { flex: 1 } : null]} onPress={() => router.push('/acties')}>
-            <Text style={s.knopVioletT}>📣 Acties</Text>
-          </Pressable>
-        </View>
-
         <View style={[s.blok, s.credits]}>
           <View style={s.creditsTop}>
             <Text style={s.blokTitel}>Advertentie-credits</Text>
@@ -354,6 +348,26 @@ function Dashboard({ session }: { session: Session }) {
           <Text style={s.sub}>Straks koop je hier credits om advertentieruimte in de app te reserveren.</Text>
         </View>
       </ScrollView>
+
+      <Modal visible={menuOpen} transparent animationType="slide" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)}>
+          <Pressable style={s.menuSheet} onPress={() => {}}>
+            <Text style={s.menuTitel}>BEHEER</Text>
+            <Pressable style={s.menuItem} onPress={() => { setMenuOpen(false); router.push('/attracties') }}>
+              <Text style={s.menuItemT}>🎡  Attracties & logins</Text>
+            </Pressable>
+            <Pressable style={s.menuItem} onPress={() => { setMenuOpen(false); router.push('/agenda') }}>
+              <Text style={s.menuItemT}>📅  Agenda beheren</Text>
+            </Pressable>
+            <Pressable style={s.menuItem} onPress={() => { setMenuOpen(false); router.push('/acties') }}>
+              <Text style={s.menuItemT}>📣  Acties</Text>
+            </Pressable>
+            <Pressable style={s.menuSluit} onPress={() => setMenuOpen(false)}>
+              <Text style={s.menuSluitT}>Sluiten</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   )
 }
@@ -418,6 +432,15 @@ const s = StyleSheet.create({
   attrSub: { color: C.muted, fontSize: 12.5, marginTop: 2 },
   attrNum: { fontSize: 20, fontWeight: '900' },
   knopRij: { gap: 12, marginTop: 16 },
+  menuKnop: { backgroundColor: C.violet, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
+  menuKnopT: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(36,27,58,0.45)', justifyContent: 'flex-end', alignItems: 'center' },
+  menuSheet: { backgroundColor: C.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 34, gap: 10, width: '100%', maxWidth: 520 },
+  menuTitel: { fontSize: 12, fontWeight: '800', color: C.muted, letterSpacing: 1, marginBottom: 2 },
+  menuItem: { backgroundColor: C.violet, borderRadius: 13, paddingVertical: 16, paddingHorizontal: 18 },
+  menuItemT: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  menuSluit: { paddingVertical: 12, alignItems: 'center', marginTop: 2 },
+  menuSluitT: { color: C.muted, fontWeight: '700', fontSize: 15 },
   credits: { backgroundColor: 'rgba(139,92,246,0.06)', borderColor: 'rgba(139,92,246,0.2)', marginTop: 16 },
   creditsTop: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 4 },
   binnenkort: {
