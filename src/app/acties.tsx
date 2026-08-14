@@ -96,7 +96,7 @@ function provinciesVoor(pc: string, niveau: number): string[] | null {
 }
 
 type Attr = { id: string; naam: string }
-type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null; status: string | null; afkeur_reden: string | null; center_postcode: string | null; radius: number | null }
+type Actie = { id: string; attractie_id: string; titel: string; soort: string; bonus_pct: number | null; bonus_modus: string | null; bonus_vast: number | null; automatisch: boolean | null; van: string; tot: string; boost_tot: string | null; eenmalig: boolean; superster_tot: string | null; superster_provincies: string[] | null; doel_provincies: string[] | null; doel_segment: string | null; status: string | null; afkeur_reden: string | null; center_postcode: string | null; radius: number | null; credits_besteed: number | null }
 
 export default function Acties() {
   const router = useRouter()
@@ -104,6 +104,7 @@ export default function Acties() {
   const [attracties, setAttracties] = useState<Attr[]>([])
   const [acties, setActies] = useState<Actie[]>([])
   const [credits, setCredits] = useState(0)
+  const [claims, setClaims] = useState<Record<string, { deelnemers: number; ingewisseld: number }>>({})
   const [okMelding, setOkMelding] = useState('')
   const [addUitlichten, setAddUitlichten] = useState(false)
   const [addSuperster, setAddSuperster] = useState(false)
@@ -260,11 +261,15 @@ export default function Acties() {
     let act: Actie[] = []
     if (eigenIds.length) {
       const { data } = await supabase.from('actie')
-        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment, status, afkeur_reden, center_postcode, radius')
+        .select('id, attractie_id, titel, soort, bonus_pct, bonus_modus, bonus_vast, automatisch, van, tot, boost_tot, eenmalig, superster_tot, superster_provincies, doel_provincies, doel_segment, status, afkeur_reden, center_postcode, radius, credits_besteed')
         .in('attractie_id', eigenIds).order('van')
       act = (data ?? []) as Actie[]
     }
     setActies(act)
+    const { data: cl } = await supabase.rpc('mijn_actie_claims')
+    const cmap: Record<string, { deelnemers: number; ingewisseld: number }> = {}
+    ;(cl ?? []).forEach((r: any) => { cmap[r.actie_id] = { deelnemers: r.deelnemers ?? 0, ingewisseld: r.ingewisseld ?? 0 } })
+    setClaims(cmap)
     setLaden(false)
   }
   useEffect(() => { if (session) herlaad() }, [session])
@@ -571,6 +576,19 @@ export default function Acties() {
                 <Pressable onPress={() => verwijder(a.id)} hitSlop={8}><Text style={s.verwijder}>Wis</Text></Pressable>
               </View>
 
+              {(() => {
+                const st = claims[a.id]
+                return (
+                  <View style={s.afr}>
+                    <View style={s.afrCel}><Text style={s.afrNum}>{st?.deelnemers ?? 0}</Text><Text style={s.afrLbl}>deelnemers</Text></View>
+                    <View style={s.afrDeel} />
+                    <View style={s.afrCel}><Text style={s.afrNum}>{st?.ingewisseld ?? 0}</Text><Text style={s.afrLbl}>ingewisseld</Text></View>
+                    <View style={s.afrDeel} />
+                    <View style={s.afrCel}><Text style={s.afrNum}>{a.credits_besteed ?? 0}</Text><Text style={s.afrLbl}>credits promo</Text></View>
+                  </View>
+                )
+              })()}
+
               {a.groep === 'lopend' ? (
                 promoVoor?.id === a.id ? (
                   <View style={s.boostVak}>
@@ -588,14 +606,26 @@ export default function Acties() {
                     <Text style={s.campProv}>Je promotie blijft binnen de {a.radius ?? 0} km van je actie.</Text>
                     <Text style={[s.label, { marginTop: 10 }]}>Max personen (optioneel)</Text>
                     <TextInput style={s.input} value={promoMax} onChangeText={(t) => setPromoMax(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholder="leeg = hele straal" placeholderTextColor={C.muted} />
-                    <Text style={s.campProv}>
-                      {promoBereik === null ? 'Bereik berekenen…' : (() => {
-                        const cap = promoMax.trim() ? parseInt(promoMax, 10) : 0
-                        const eff = cap > 0 && cap < promoBereik ? cap : promoBereik
-                        const t = PROMO[promoVoor.type].tarief
-                        return `${eff} × ${t} = ${eff * t} credits (meteen afgeboekt). Saldo: ${credits}.`
-                      })()}
-                    </Text>
+                    {promoBereik === null ? (
+                      <Text style={s.campProv}>Bereik berekenen…</Text>
+                    ) : (() => {
+                      const cap = promoMax.trim() ? parseInt(promoMax, 10) : 0
+                      const eff = cap > 0 && cap < promoBereik ? cap : promoBereik
+                      const t = PROMO[promoVoor.type].tarief
+                      const totaal = eff * t
+                      const saldoNa = credits - totaal
+                      return (
+                        <View style={s.bon}>
+                          <Text style={s.bonKop}>Afrekening</Text>
+                          <View style={s.bonRij}><Text style={s.bonLbl}>Bereik</Text><Text style={s.bonVal}>{eff} {eff === 1 ? 'persoon' : 'personen'}</Text></View>
+                          <View style={s.bonRij}><Text style={s.bonLbl}>Tarief</Text><Text style={s.bonVal}>{t} credits p.p.</Text></View>
+                          <View style={s.bonLijn} />
+                          <View style={s.bonRij}><Text style={s.bonTotLbl}>Totaal</Text><Text style={s.bonTotVal}>{totaal} credits</Text></View>
+                          <View style={s.bonRij}><Text style={s.bonLbl}>Saldo na afboeking</Text><Text style={[s.bonVal, { color: saldoNa < 0 ? C.red : C.ink, fontWeight: '800' }]}>{saldoNa} credits</Text></View>
+                          {saldoNa < 0 ? <Text style={s.bonWaarschuw}>Onvoldoende credits voor dit bereik.</Text> : null}
+                        </View>
+                      )
+                    })()}
                     {promoFout ? <Text style={s.boostFout}>{promoFout}</Text> : null}
                     <Pressable onPress={doePromo} disabled={promoBezig} style={[s.knop, s.knopViolet, promoBezig && s.knopUit]}>
                       {promoBezig ? <ActivityIndicator color="#fff" /> : <Text style={s.knopVioletT}>Activeren</Text>}
@@ -830,6 +860,20 @@ const s = StyleSheet.create({
   campKop: { color: C.ink, fontSize: 15, fontWeight: '900' },
   campUitleg: { color: C.muted, fontSize: 12.5, marginTop: 4, lineHeight: 18 },
   campProv: { color: C.green, fontSize: 13, fontWeight: '700', marginTop: 6 },
+  bon: { backgroundColor: C.card, borderColor: C.violet, borderWidth: 1.5, borderRadius: 14, padding: 14, marginTop: 12, gap: 7 },
+  bonKop: { color: C.violet, fontSize: 12, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 },
+  bonRij: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bonLbl: { color: C.muted, fontSize: 13.5 },
+  bonVal: { color: C.ink, fontSize: 13.5, fontWeight: '700' },
+  bonLijn: { height: 1, backgroundColor: C.line, marginVertical: 3 },
+  bonTotLbl: { color: C.ink, fontSize: 15, fontWeight: '800' },
+  bonTotVal: { color: C.violet, fontSize: 16, fontWeight: '900' },
+  bonWaarschuw: { color: C.red, fontSize: 12.5, fontWeight: '700', marginTop: 2 },
+  afr: { flexDirection: 'row', backgroundColor: C.veld, borderRadius: 12, paddingVertical: 10, marginTop: 10, alignItems: 'center' },
+  afrCel: { flex: 1, alignItems: 'center' },
+  afrDeel: { width: 1, height: 26, backgroundColor: C.line },
+  afrNum: { color: C.ink, fontSize: 17, fontWeight: '900' },
+  afrLbl: { color: C.muted, fontSize: 11, fontWeight: '600', marginTop: 1 },
   balk: { flexDirection: 'row', gap: 4 },
   balkSeg: { flex: 1, backgroundColor: C.veld, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   balkSegAan: { backgroundColor: C.violet },
