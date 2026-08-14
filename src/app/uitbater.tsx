@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
@@ -106,14 +106,13 @@ function Dashboard({ session }: { session: Session }) {
   const [naam, setNaam] = useState('')
   const [isUitbater, setIsUitbater] = useState<boolean | null>(null)
   const [attracties, setAttracties] = useState<Attr[]>([])
-  const [openstaand, setOpenstaand] = useState(0)
-  const [opgeladen, setOpgeladen] = useState(0)
-  const [ingewisseld, setIngewisseld] = useState(0)
   const [perAttr, setPerAttr] = useState<Record<string, { saldo: number; boekingen: number; sparers: number; ingewisseld: number }>>({})
+  const [sal, setSal] = useState<any[]>([])
+  const [boekRows, setBoekRows] = useState<any[]>([])
+  const [gekozen, setGekozen] = useState<string>('alle')
   const [heat, setHeat] = useState<ProvAantal[]>([])
   const [leeftijden, setLeeftijden] = useState<{ categorie: string; aantal: number }[]>([])
   const [actieStats, setActieStats] = useState<{ actie_id: string; attractie_id: string; titel: string; eenmalig: boolean; claims: number; ingewisseld: number }[]>([])
-  const [dagen, setDagen] = useState<{ label: string; waarde: number }[]>([])
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
@@ -136,29 +135,56 @@ function Dashboard({ session }: { session: Session }) {
       const pa: Record<string, { saldo: number; boekingen: number; sparers: number; ingewisseld: number }> = {}
       const spSet: Record<string, Set<string>> = {}
       attrLijst.forEach((a) => { pa[a.id] = { saldo: 0, boekingen: 0, sparers: 0, ingewisseld: 0 }; spSet[a.id] = new Set() })
-      let tot = 0
-      ;(sal ?? []).forEach((r: any) => { tot += r.saldo ?? 0; if (pa[r.attractie_id]) pa[r.attractie_id].saldo += r.saldo ?? 0 })
-      setOpenstaand(tot)
-      let up = 0, neer = 0
-      const perDag: Record<string, number> = {}
+      ;(sal ?? []).forEach((r: any) => { if (pa[r.attractie_id]) pa[r.attractie_id].saldo += r.saldo ?? 0 })
       ;(boek ?? []).forEach((r: any) => {
-        if (r.soort === 'toevoegen') up += r.punten; else neer += Math.abs(r.punten)
         if (pa[r.attractie_id]) {
           pa[r.attractie_id].boekingen += 1
           if (r.soort !== 'toevoegen') pa[r.attractie_id].ingewisseld += Math.abs(r.punten)
           if (r.bezoeker_id) spSet[r.attractie_id].add(r.bezoeker_id)
         }
-        if (r.soort === 'toevoegen') { const k = String(r.created_at).slice(0, 10); perDag[k] = (perDag[k] ?? 0) + r.punten }
       })
       attrLijst.forEach((a) => { pa[a.id].sparers = spSet[a.id].size })
-      setOpgeladen(up); setIngewisseld(neer); setPerAttr(pa)
+      setPerAttr(pa)
+      setSal((sal ?? []) as any[])
+      setBoekRows((boek ?? []) as any[])
       setHeat((prov ?? []) as ProvAantal[])
       setLeeftijden((lft ?? []) as { categorie: string; aantal: number }[])
       setActieStats((astat ?? []) as any)
-      setDagen(laatsteDagen(14).map((d) => ({ label: `${d.getDate()}/${d.getMonth() + 1}`, waarde: perDag[dagKey(d)] ?? 0 })))
       setLaden(false)
     })()
   }, [])
+
+  // Heatmap + leeftijden per kraam herladen wanneer de keuze verandert.
+  useEffect(() => {
+    if (laden) return
+    let afg = false
+    const arg = gekozen === 'alle' ? {} : { p_attractie_id: gekozen }
+    Promise.all([
+      supabase.rpc('uitb_provincies', arg),
+      supabase.rpc('uitb_leeftijden', arg),
+    ]).then(([{ data: prov }, { data: lft }]) => {
+      if (afg) return
+      setHeat((prov ?? []) as ProvAantal[])
+      setLeeftijden((lft ?? []) as { categorie: string; aantal: number }[])
+    })
+    return () => { afg = true }
+  }, [gekozen])
+
+  const stats = useMemo(() => {
+    const alle = gekozen === 'alle'
+    let open = 0, op = 0, ing = 0
+    const sp = new Set<string>()
+    const perDag: Record<string, number> = {}
+    for (const r of sal) if (alle || r.attractie_id === gekozen) open += r.saldo ?? 0
+    for (const r of boekRows) {
+      if (!alle && r.attractie_id !== gekozen) continue
+      if (r.soort === 'toevoegen') { op += r.punten; const k = String(r.created_at).slice(0, 10); perDag[k] = (perDag[k] ?? 0) + r.punten }
+      else ing += Math.abs(r.punten)
+      if (r.bezoeker_id) sp.add(r.bezoeker_id)
+    }
+    const reeks = laatsteDagen(14).map((d) => ({ label: `${d.getDate()}/${d.getMonth() + 1}`, waarde: perDag[dagKey(d)] ?? 0 }))
+    return { open, op, ing, spaarders: sp.size, dagen: reeks }
+  }, [gekozen, sal, boekRows])
 
   if (laden) return <View style={[s.scherm, s.center]}><ActivityIndicator color={C.violet} size="large" /></View>
   if (isUitbater === false) {
@@ -173,13 +199,23 @@ function Dashboard({ session }: { session: Session }) {
   }
 
   const naamVanAttr = (id: string) => attracties.find((a) => a.id === id)?.naam ?? '—'
+  const dagen = stats.dagen
   const maxDag = Math.max(1, ...dagen.map((d) => d.waarde))
-  const kpis = [
-    { num: openstaand, lbl: 'openstaande punten', kleur: C.green },
-    { num: attracties.length, lbl: 'attracties', kleur: C.ink },
-    { num: opgeladen, lbl: 'totaal opgeladen', kleur: C.ink },
-    { num: ingewisseld, lbl: 'ingewisseld', kleur: C.ink },
-  ]
+  const gekozenNaam = gekozen === 'alle' ? null : naamVanAttr(gekozen)
+  const kpis = gekozen === 'alle'
+    ? [
+      { num: stats.open, lbl: 'openstaande punten', kleur: C.green },
+      { num: attracties.length, lbl: 'attracties', kleur: C.ink },
+      { num: stats.op, lbl: 'totaal opgeladen', kleur: C.ink },
+      { num: stats.ing, lbl: 'ingewisseld', kleur: C.ink },
+    ]
+    : [
+      { num: stats.open, lbl: 'openstaande punten', kleur: C.green },
+      { num: stats.spaarders, lbl: 'spaarders', kleur: C.ink },
+      { num: stats.op, lbl: 'opgeladen', kleur: C.ink },
+      { num: stats.ing, lbl: 'ingewisseld', kleur: C.ink },
+    ]
+  const zichtbareActies = gekozen === 'alle' ? actieStats : actieStats.filter((a) => a.attractie_id === gekozen)
 
   return (
     <View style={s.scherm}>
@@ -192,7 +228,20 @@ function Dashboard({ session }: { session: Session }) {
         </View>
 
         <Text style={s.titel}>Dashboard</Text>
-        <Text style={s.sub}>{naam ? `${naam} · ` : ''}{attracties.length} attractie{attracties.length === 1 ? '' : 's'}</Text>
+        <Text style={s.sub}>{naam ? `${naam} · ` : ''}{gekozenNaam ? gekozenNaam : `${attracties.length} attractie${attracties.length === 1 ? '' : 's'}`}</Text>
+
+        {attracties.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.kiezerRij}>
+            <Pressable onPress={() => setGekozen('alle')} style={[s.kiezer, gekozen === 'alle' && s.kiezerAan]}>
+              <Text style={[s.kiezerT, gekozen === 'alle' && s.kiezerTAan]}>Alle kramen</Text>
+            </Pressable>
+            {attracties.map((a) => (
+              <Pressable key={a.id} onPress={() => setGekozen(a.id)} style={[s.kiezer, gekozen === a.id && s.kiezerAan]}>
+                <Text style={[s.kiezerT, gekozen === a.id && s.kiezerTAan]}>{a.naam}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
 
         <View style={s.kpiWrap}>
           {kpis.map((k, i) => (
@@ -225,7 +274,7 @@ function Dashboard({ session }: { session: Session }) {
               {attracties.length === 0
                 ? <Text style={s.sub}>Nog geen attracties.</Text>
                 : attracties.map((a) => (
-                  <View key={a.id} style={s.attrRij}>
+                  <Pressable key={a.id} onPress={() => setGekozen(gekozen === a.id ? 'alle' : a.id)} style={[s.attrRij, gekozen === a.id && s.attrRijAan]}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.attrNaam}>{a.naam}</Text>
                       <Text style={s.attrSub}>{a.soort} · {perAttr[a.id]?.sparers ?? 0} spaarders · {perAttr[a.id]?.boekingen ?? 0} boekingen</Text>
@@ -234,7 +283,7 @@ function Dashboard({ session }: { session: Session }) {
                       <Text style={[s.attrNum, { color: C.green }]}>{perAttr[a.id]?.saldo ?? 0}</Text>
                       <Text style={s.attrSub}>open</Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
             </View>
           </View>
@@ -266,9 +315,9 @@ function Dashboard({ session }: { session: Session }) {
 
           <View style={[s.blok, breed ? { flex: 1 } : null]}>
             <Text style={s.blokTitel}>Per actie</Text>
-            {actieStats.length === 0
+            {zichtbareActies.length === 0
               ? <Text style={s.sub}>Nog geen acties. Zet er een op via 📣 Acties.</Text>
-              : actieStats.map((a) => (
+              : zichtbareActies.map((a) => (
                 <View key={a.actie_id} style={s.attrRij}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.attrNaam}>{a.eenmalig ? '🎟️ ' : ''}{a.titel}</Text>
@@ -357,6 +406,12 @@ const s = StyleSheet.create({
   balkLbl: { color: C.muted, fontSize: 10, marginTop: 6 },
   grafiekVoet: { color: C.muted, fontSize: 12.5, marginTop: 10 },
   attrRij: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.line },
+  attrRijAan: { backgroundColor: 'rgba(139,92,246,0.07)', borderRadius: 10 },
+  kiezerRij: { flexDirection: 'row', gap: 8, marginTop: 16, paddingBottom: 2 },
+  kiezer: { backgroundColor: C.veld, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
+  kiezerAan: { backgroundColor: C.violet },
+  kiezerT: { color: C.muted, fontWeight: '800', fontSize: 13 },
+  kiezerTAan: { color: '#fff' },
   attrNaam: { color: C.ink, fontSize: 15.5, fontWeight: '700' },
   attrSub: { color: C.muted, fontSize: 12.5, marginTop: 2 },
   attrNum: { fontSize: 20, fontWeight: '900' },
