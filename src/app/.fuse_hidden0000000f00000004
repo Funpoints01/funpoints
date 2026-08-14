@@ -551,16 +551,6 @@ function Uitbaters() {
               ))}
             </View>
 
-            <View style={[s.statusRij, { marginTop: 8 }]}>
-              <Pressable onPress={() => zetBetaald(u.id, !u.betaald)}
-                style={[s.statusChip, u.betaald && { backgroundColor: C.green, borderColor: C.green }]}>
-                <Text style={[s.statusChipT, u.betaald && { color: '#fff' }]}>{u.betaald ? 'Betaald \u2713' : 'Niet betaald'}</Text>
-              </Pressable>
-              <Pressable onPress={() => zetPauze(u.id, !u.gepauzeerd)}
-                style={[s.statusChip, u.gepauzeerd && { backgroundColor: C.red, borderColor: C.red }]}>
-                <Text style={[s.statusChipT, u.gepauzeerd && { color: '#fff' }]}>{u.gepauzeerd ? 'Gepauzeerd' : 'Pauzeer abo'}</Text>
-              </Pressable>
-            </View>
             <View style={s.credRij}>
               <Text style={s.credSaldo}>max {u.max_attracties} attr.</Text>
               <TextInput style={s.credInput} value={maxIn[u.id] ?? ''}

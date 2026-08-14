@@ -7,7 +7,6 @@ import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { SparersHeatmap, type ProvAantal } from '../components/SparersHeatmap'
-import FactuurBanner from '../components/FactuurBanner'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -221,7 +220,6 @@ function Dashboard({ session }: { session: Session }) {
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={s.wrap}>
-        <FactuurBanner />
         <View style={s.topbar}>
           <Logo />
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>

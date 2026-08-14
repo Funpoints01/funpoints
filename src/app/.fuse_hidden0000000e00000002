@@ -6,7 +6,6 @@ import {
 import { useRouter } from 'expo-router'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, maakLogin } from '../lib/supabase'
-import FactuurBanner from '../components/FactuurBanner'
 
 const C = {
   bg: '#FFF8F0', card: '#FFFFFF', veld: '#F4F1FA', ink: '#241B3A',
@@ -207,7 +206,6 @@ export default function Attracties() {
   return (
     <KeyboardAvoidingView style={s.scherm} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
-        <FactuurBanner />
         <Pressable onPress={() => router.push('/uitbater')} hitSlop={12}><Text style={s.terug}>‹ Dashboard</Text></Pressable>
         <Text style={s.titel}>Attracties & logins</Text>
         <Text style={s.sub}>Beheer je kramen en maak per kraam een foorkramer-login aan.</Text>

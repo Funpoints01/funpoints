@@ -221,7 +221,6 @@ function Dashboard({ session }: { session: Session }) {
   return (
     <View style={s.scherm}>
       <ScrollView contentContainerStyle={s.wrap}>
-        <FactuurBanner />
         <View style={s.topbar}>
           <Logo />
           <Pressable onPress={async () => { await supabase.auth.signOut(); router.push('/') }}>

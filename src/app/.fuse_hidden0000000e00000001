@@ -43,7 +43,7 @@ const STATUS_OPTS = [
 
 const PAKKET_OPTS = [
   { key: 'start', label: 'Basis', kleur: '#8B5CF6' },
-  { key: 'volledig', label: 'Uitgebreid', kleur: '#10B981' },
+  { key: 'volledig', label: 'Volledig', kleur: '#10B981' },
 ] as const
 
 export default function Beheer() {
@@ -338,7 +338,7 @@ function Financieel() {
 
       <View style={s.blok}>
         <Text style={s.blokTitel}>Abonnementen</Text>
-        <Text style={s.blokSub}>€ 79/maand basis · € 149/maand uitgebreid · 1 kraam per pakket · enkel actieve uitbaters</Text>
+        <Text style={s.blokSub}>€ 99/maand voor het eerste kraam · € 50/maand per extra kraam · enkel actieve uitbaters</Text>
         <View style={{ marginTop: 12, gap: 9 }}>
           <View style={s.finRij}><Text style={s.finLbl}>Actieve uitbaters</Text><Text style={[s.finVal, { color: C.green }]}>{fin?.actief ?? 0}</Text></View>
           <View style={s.finRij}><Text style={s.finLbl}>In proefperiode</Text><Text style={[s.finVal, { color: C.amber }]}>{fin?.proef ?? 0}</Text></View>
@@ -436,15 +436,6 @@ function Uitbaters() {
     await supabase.rpc('mgmt_uitbater_pakket', { p_id: id, p_pakket: pakket, p_max: n })
     herlaad()
   }
-  async function zetBetaald(id: string, betaald: boolean) {
-    setLijst((l) => l.map((u) => u.id === id ? { ...u, betaald } : u))
-    await supabase.rpc('mgmt_uitbater_betaald', { p_id: id, p_betaald: betaald })
-  }
-  async function zetPauze(id: string, gepauzeerd: boolean) {
-    setLijst((l) => l.map((u) => u.id === id ? { ...u, gepauzeerd } : u))
-    await supabase.rpc('mgmt_uitbater_pauze', { p_id: id, p_gepauzeerd: gepauzeerd })
-    herlaad()
-  }
   async function kenToe(id: string) {
     const n = parseInt(credit[id] ?? '', 10)
     if (!n) return
@@ -525,7 +516,7 @@ function Uitbaters() {
             <View style={s.uTop}>
               <View style={{ flex: 1 }}>
                 <Text style={s.attrNaam}>{u.naam ?? 'Naamloos'}</Text>
-                <Text style={s.attrSub}>{u.email ?? '—'} · {u.kramen}/{u.max_attracties} kraam(en) · {u.pakket === 'volledig' ? 'Uitgebreid' : 'Basis'}</Text>
+                <Text style={s.attrSub}>{u.email ?? '—'} · {u.kramen}/{u.max_attracties} kraam(en) · {u.pakket === 'volledig' ? 'Volledig' : 'Basis'}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={[s.attrPunten, { color: u.status === 'actief' ? C.green : C.muted }]}>{euro(u.mrr)}</Text>
@@ -551,16 +542,6 @@ function Uitbaters() {
               ))}
             </View>
 
-            <View style={[s.statusRij, { marginTop: 8 }]}>
-              <Pressable onPress={() => zetBetaald(u.id, !u.betaald)}
-                style={[s.statusChip, u.betaald && { backgroundColor: C.green, borderColor: C.green }]}>
-                <Text style={[s.statusChipT, u.betaald && { color: '#fff' }]}>{u.betaald ? 'Betaald \u2713' : 'Niet betaald'}</Text>
-              </Pressable>
-              <Pressable onPress={() => zetPauze(u.id, !u.gepauzeerd)}
-                style={[s.statusChip, u.gepauzeerd && { backgroundColor: C.red, borderColor: C.red }]}>
-                <Text style={[s.statusChipT, u.gepauzeerd && { color: '#fff' }]}>{u.gepauzeerd ? 'Gepauzeerd' : 'Pauzeer abo'}</Text>
-              </Pressable>
-            </View>
             <View style={s.credRij}>
               <Text style={s.credSaldo}>max {u.max_attracties} attr.</Text>
               <TextInput style={s.credInput} value={maxIn[u.id] ?? ''}
